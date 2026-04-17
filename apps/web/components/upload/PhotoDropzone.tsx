@@ -104,7 +104,7 @@ export default function PhotoDropzone({ onJobCreated, mode = 'object' }: Props) 
     } finally {
       setSubmitting(false);
     }
-  }, [items, submitting, onJobCreated]);
+  }, [items, submitting, onJobCreated, mode]);
 
   return (
     <div className="flex flex-col gap-4">

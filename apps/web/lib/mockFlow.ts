@@ -14,6 +14,7 @@
 import type { JobStatus } from './shared/types';
 import { generateSplatFromPhotos, type ReconstructionMode } from './gen3d';
 import type { DepthProgress } from './depth';
+import { callHfSpace, getHfSpaceUrl } from './hfSpace';
 
 export type MockJobSnapshot = {
   id: string;
@@ -24,10 +25,14 @@ export type MockJobSnapshot = {
   /** 샘플 .spz 경로 등 URL 기반 결과 */
   result_ply_url: string | null;
   /**
-   * 클라이언트에서 생성된 .ply 바이트. Spark.js의 `fileBytes` 옵션에 직접
-   * 전달해 Blob URL 포맷 감지 실패를 피한다.
+   * 클라이언트에서 생성된 .splat 바이트 (Spark 뷰어용).
    */
   result_ply_bytes: Uint8Array | null;
+  /**
+   * HF Space가 반환한 .glb 바이트 (GLTF mesh 뷰어용).
+   * 이 필드가 있으면 Mesh 뷰어가, 아니면 Spark 뷰어가 렌더링.
+   */
+  result_glb_bytes: Uint8Array | null;
   error_code: string | null;
   error_message: string | null;
   thumbnail_url: string | null;
@@ -59,14 +64,16 @@ export function startMockJob(options: {
   mode?: ReconstructionMode;
 }): string {
   const id = randomId();
+  const hfUrl = getHfSpaceUrl();
   const initial: MockJobSnapshot = {
     id,
     status: 'queued',
     progress: 0,
-    worker_backend: 'browser_gen3d',
+    worker_backend: hfUrl ? 'hf_space' : 'browser_gen3d',
     result_model_id: null,
     result_ply_url: null,
     result_ply_bytes: null,
+    result_glb_bytes: null,
     error_code: null,
     error_message: null,
     thumbnail_url: options.thumbnailUrl,
@@ -101,22 +108,65 @@ export function startMockJob(options: {
 }
 
 /**
- * 실제 생성 구동 — gen3d(depth-based 3D)를 실행하며 상태 방출.
+ * 실제 생성 구동 — HF Space 우선 시도, 실패 시 브라우저 gen3d fallback.
  */
 async function runGeneration(
   id: string,
   files: File[],
   mode: ReconstructionMode,
 ): Promise<void> {
-  emit(id, { status: 'preprocessing', progress: 5 });
+  const hfUrl = getHfSpaceUrl();
+
+  // ─ HF Space 모드 (서버 GPU, 진짜 3D mesh) ───────────────────────────
+  if (hfUrl) {
+    try {
+      emit(id, { status: 'preprocessing', progress: 5 });
+      await tick();
+
+      const glbResult = await callHfSpace(files[0]!, {
+        removeBg: true,
+        onProgress: (frac, label) => {
+          const pct = Math.round(5 + frac * 90);
+          let status: JobStatus = 'preprocessing';
+          if (pct < 20) status = 'preprocessing';
+          else if (pct < 50) status = 'pose_estimation';
+          else if (pct < 90) status = 'training';
+          else status = 'postprocessing';
+          emit(id, {
+            status,
+            progress: pct,
+            error_message: label ?? null,
+          });
+        },
+      });
+
+      emit(id, {
+        status: 'done',
+        progress: 100,
+        result_model_id: `model-${id}`,
+        result_glb_bytes: glbResult.bytes,
+        error_message: null,
+      });
+      return;
+    } catch (err) {
+      // HF 호출 실패 — 브라우저 fallback 으로 이행
+      console.warn('[mockFlow] HF Space failed, falling back to browser', err);
+      emit(id, {
+        status: 'preprocessing',
+        progress: 0,
+        error_message: '서버 변환 실패 → 브라우저 변환으로 전환',
+      });
+    }
+  }
+
+  // ─ 브라우저 fallback (depth-based point cloud, 프리뷰 품질) ────────────
+  emit(id, { status: 'preprocessing', progress: 5, error_message: null });
   await tick();
 
   const plyBytes = await generateSplatFromPhotos(files, {
     mode,
     onProgress: (frac: number) => {
-      // 전체 구간 5% ~ 90% 를 gen3d 진행률로 매핑
       const pct = Math.round(5 + frac * 85);
-      // 단계 추정
       let status: JobStatus = 'preprocessing';
       if (pct < 20) status = 'preprocessing';
       else if (pct < 50) status = 'pose_estimation';
@@ -125,7 +175,6 @@ async function runGeneration(
       emit(id, { status, progress: pct });
     },
     onModelProgress: (mp: DepthProgress) => {
-      // 모델 다운로드 진행률을 preprocessing 단계로 매핑
       if (mp.stage === 'downloading' && typeof mp.progress === 'number') {
         emit(id, {
           status: 'preprocessing',

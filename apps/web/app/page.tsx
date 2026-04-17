@@ -41,13 +41,24 @@ const ViewerShell = dynamic(() => import('@/components/viewer/ViewerShell'), {
   ),
 });
 
+const MeshViewer = dynamic(() => import('@/components/viewer/MeshViewer'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-full w-full items-center justify-center text-sm text-base-500">
+      mesh 뷰어 준비 중
+    </div>
+  ),
+});
+
 type ModelEntry = {
   id: string;
   title: string;
-  /** 샘플 등 URL 기반 결과 */
+  /** 샘플 등 URL 기반 결과 (.spz/.ply) */
   spzUrl: string | null;
-  /** 클라이언트 생성 결과 — 직접 뷰어에 넘김 */
+  /** 브라우저 생성 .splat 바이트 (Spark 뷰어) */
   plyBytes: Uint8Array | null;
+  /** HF Space 생성 .glb 바이트 (GLTF mesh 뷰어) */
+  glbBytes: Uint8Array | null;
   thumbnailUrl: string | null;
   createdAt: string;
 };
@@ -68,13 +79,20 @@ export default function DashboardPage() {
   }, []);
 
   const handleJobDone = useCallback(
-    (snap: { result_ply_url: string | null; result_ply_bytes: Uint8Array | null }) => {
+    (snap: {
+      result_ply_url: string | null;
+      result_ply_bytes: Uint8Array | null;
+      result_glb_bytes: Uint8Array | null;
+    }) => {
+      // 우선순위: HF Space의 .glb > 브라우저의 .splat > 샘플 fallback
+      const hasGlb = !!snap.result_glb_bytes;
+      const hasSplat = !!snap.result_ply_bytes;
       const model: ModelEntry = {
         id: jobId || `model-${Date.now()}`,
         title: `모델 ${String(myModels.length + 1).padStart(2, '0')}`,
-        // gen3d가 생성한 실제 .ply 바이트 우선. 없으면 샘플 URL로 폴백.
-        spzUrl: snap.result_ply_bytes ? null : snap.result_ply_url || '/samples/butterfly.spz',
+        spzUrl: hasGlb || hasSplat ? null : snap.result_ply_url || '/samples/butterfly.spz',
         plyBytes: snap.result_ply_bytes,
+        glbBytes: snap.result_glb_bytes,
         thumbnailUrl: sourceThumbnail,
         createdAt: new Date().toLocaleString('ko-KR'),
       };
@@ -292,13 +310,17 @@ export default function DashboardPage() {
               </header>
 
               <div className="aspect-[4/3] w-full overflow-hidden rounded-lg border border-base-100 bg-base-0 sm:aspect-[16/10]">
-                <ViewerShell
-                  url={currentModel.spzUrl ?? undefined}
-                  fileBytes={currentModel.plyBytes ?? undefined}
-                  fileType="splat"
-                  autoRotate
-                  minimal
-                />
+                {currentModel.glbBytes ? (
+                  <MeshViewer fileBytes={currentModel.glbBytes} autoRotate />
+                ) : (
+                  <ViewerShell
+                    url={currentModel.spzUrl ?? undefined}
+                    fileBytes={currentModel.plyBytes ?? undefined}
+                    fileType="splat"
+                    autoRotate
+                    minimal
+                  />
+                )}
               </div>
 
               <div className="flex items-center gap-2 border-t border-base-100 pt-4">
