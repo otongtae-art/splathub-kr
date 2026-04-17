@@ -1,13 +1,8 @@
 'use client';
 
-/**
- * /login — 로그인/회원가입 페이지.
- * Supabase Auth (이메일 + Google OAuth + Kakao OAuth).
- * Supabase 미연결 시 게스트 모드로 안내.
- */
-
 import Link from 'next/link';
 import { useState } from 'react';
+import { GoogleLogo, ArrowRight, Warning } from '@phosphor-icons/react/dist/ssr';
 import { getSupabaseBrowser, isSupabaseConnected } from '@/lib/supabase/client';
 
 export default function LoginPage() {
@@ -52,7 +47,6 @@ export default function LoginPage() {
   const handleOAuth = async (provider: 'google' | 'kakao') => {
     const supabase = getSupabaseBrowser();
     if (!supabase) return;
-
     await supabase.auth.signInWithOAuth({
       provider,
       options: { redirectTo: `${window.location.origin}/` },
@@ -60,109 +54,133 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-ink-900 px-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <Link href="/" className="text-2xl font-bold text-accent-500">
+    <div className="flex min-h-[100dvh] items-center justify-center px-6">
+      <div className="w-full max-w-sm animate-slide-up">
+        <header className="mb-10 flex flex-col items-start gap-1.5">
+          <Link
+            href="/"
+            className="text-base font-semibold tracking-tight text-base-900"
+          >
             SplatHub
           </Link>
-          <p className="mt-2 text-sm text-ink-400">
-            {mode === 'login' ? '로그인' : '회원가입'}
+          <h1 className="text-2xl font-semibold tracking-tight text-base-900">
+            {mode === 'login' ? '다시 만나서 반가워요' : '계정 만들기'}
+          </h1>
+          <p className="text-sm text-base-500">
+            {mode === 'login'
+              ? '이메일 또는 소셜 계정으로 계속하세요.'
+              : '가입하고 3D 모델을 저장하세요.'}
           </p>
-        </div>
+        </header>
 
         {!connected && (
-          <div className="mb-6 rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-4">
-            <p className="text-sm font-medium text-yellow-200">Supabase 미연결</p>
-            <p className="mt-1 text-xs text-yellow-200/70">
-              .env.local에 NEXT_PUBLIC_SUPABASE_URL과 NEXT_PUBLIC_SUPABASE_ANON_KEY를
-              설정하면 로그인이 활성화됩니다. 지금은 게스트 모드로 이용하세요.
-            </p>
+          <div className="mb-6 flex flex-col gap-3 rounded-lg border border-warn/30 bg-warn/[0.04] p-4">
+            <div className="flex items-start gap-2">
+              <Warning size={14} weight="regular" className="mt-0.5 flex-shrink-0 text-warn" />
+              <div className="flex flex-col gap-0.5">
+                <p className="text-sm font-medium text-warn">Supabase 미연결</p>
+                <p className="text-xs text-base-500">
+                  .env.local에 NEXT_PUBLIC_SUPABASE_URL과 NEXT_PUBLIC_SUPABASE_ANON_KEY를
+                  설정하면 로그인이 활성화됩니다.
+                </p>
+              </div>
+            </div>
             <Link
               href="/"
-              className="mt-3 inline-block rounded-md bg-accent-500 px-4 py-2 text-sm font-semibold text-ink-900"
+              className="tactile inline-flex items-center justify-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-base-0"
             >
               게스트로 시작하기
+              <ArrowRight size={12} weight="bold" />
             </Link>
           </div>
         )}
 
         {connected && (
           <>
-            {/* OAuth 버튼 */}
             <div className="flex flex-col gap-2">
               <button
                 type="button"
                 onClick={() => handleOAuth('google')}
-                className="flex items-center justify-center gap-2 rounded-lg border border-ink-600 bg-ink-800 py-2.5 text-sm font-medium text-ink-100 transition hover:bg-ink-700"
+                className="tactile inline-flex items-center justify-center gap-2 rounded-md border border-base-200 bg-base-50 py-2.5 text-sm font-medium text-base-800 transition-colors hover:border-base-300"
               >
-                <GoogleIcon />
+                <GoogleLogo size={16} weight="bold" />
                 Google로 계속
               </button>
               <button
                 type="button"
                 onClick={() => handleOAuth('kakao')}
-                className="flex items-center justify-center gap-2 rounded-lg bg-[#FEE500] py-2.5 text-sm font-medium text-[#191919] transition hover:bg-[#FDD835]"
+                className="tactile inline-flex items-center justify-center gap-2 rounded-md bg-[#FEE500] py-2.5 text-sm font-medium text-[#191919] transition-colors hover:bg-[#FDD835]"
               >
-                💬 카카오로 계속
+                카카오로 계속
               </button>
             </div>
 
             <div className="my-6 flex items-center gap-3">
-              <div className="h-px flex-1 bg-ink-700" />
-              <span className="text-xs text-ink-500">또는</span>
-              <div className="h-px flex-1 bg-ink-700" />
+              <div className="h-px flex-1 bg-base-100" />
+              <span className="text-xs text-base-500">또는</span>
+              <div className="h-px flex-1 bg-base-100" />
             </div>
 
-            {/* 이메일 폼 */}
             <form onSubmit={handleEmailAuth} className="flex flex-col gap-3">
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="이메일"
-                required
-                className="rounded-lg border border-ink-600 bg-ink-800 px-4 py-2.5 text-sm text-ink-50 placeholder:text-ink-500 focus:border-accent-500 focus:outline-none"
-              />
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="비밀번호 (6자 이상)"
-                required
-                minLength={6}
-                className="rounded-lg border border-ink-600 bg-ink-800 px-4 py-2.5 text-sm text-ink-50 placeholder:text-ink-500 focus:border-accent-500 focus:outline-none"
-              />
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="email" className="text-xs font-medium text-base-600">
+                  이메일
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  required
+                  className="rounded-md border border-base-200 bg-base-50 px-3 py-2 text-sm text-base-900 placeholder:text-base-400 focus:border-accent focus:outline-none"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="password" className="text-xs font-medium text-base-600">
+                  비밀번호
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="최소 6자"
+                  required
+                  minLength={6}
+                  className="rounded-md border border-base-200 bg-base-50 px-3 py-2 text-sm text-base-900 placeholder:text-base-400 focus:border-accent focus:outline-none"
+                />
+              </div>
               <button
                 type="submit"
                 disabled={loading}
-                className="rounded-lg bg-accent-500 py-2.5 text-sm font-semibold text-ink-900 transition hover:bg-accent-400 disabled:opacity-50"
+                className="tactile mt-1 rounded-md bg-accent py-2.5 text-sm font-medium text-base-0 transition-colors hover:bg-accent-bright disabled:bg-base-200 disabled:text-base-500"
               >
-                {loading ? '처리 중...' : mode === 'login' ? '로그인' : '회원가입'}
+                {loading ? '처리 중' : mode === 'login' ? '로그인' : '회원가입'}
               </button>
             </form>
 
             {error && (
-              <p className="mt-3 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+              <p className="mt-3 rounded-md border border-danger/30 bg-danger/[0.04] px-3 py-2 text-xs text-danger">
                 {error}
               </p>
             )}
             {message && (
-              <p className="mt-3 rounded-md border border-green-500/40 bg-green-500/10 px-3 py-2 text-xs text-green-200">
+              <p className="mt-3 rounded-md border border-accent/30 bg-accent/[0.04] px-3 py-2 text-xs text-accent-bright">
                 {message}
               </p>
             )}
 
-            <p className="mt-4 text-center text-xs text-ink-400">
+            <p className="mt-6 text-center text-xs text-base-500">
               {mode === 'login' ? (
                 <>
                   계정이 없나요?{' '}
                   <button
                     type="button"
                     onClick={() => setMode('signup')}
-                    className="text-accent-500 hover:underline"
+                    className="text-base-700 transition-colors hover:text-base-900"
                   >
-                    회원가입
+                    회원가입 →
                   </button>
                 </>
               ) : (
@@ -171,9 +189,9 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setMode('login')}
-                    className="text-accent-500 hover:underline"
+                    className="text-base-700 transition-colors hover:text-base-900"
                   >
-                    로그인
+                    로그인 →
                   </button>
                 </>
               )}
@@ -182,28 +200,5 @@ export default function LoginPage() {
         )}
       </div>
     </div>
-  );
-}
-
-function GoogleIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-      <path
-        d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"
-        fill="#4285F4"
-      />
-      <path
-        d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z"
-        fill="#34A853"
-      />
-      <path
-        d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"
-        fill="#FBBC05"
-      />
-      <path
-        d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"
-        fill="#EA4335"
-      />
-    </svg>
   );
 }

@@ -1,5 +1,14 @@
 import type { Config } from 'tailwindcss';
 
+/**
+ * SplatHub design system — taste-skill 원칙 기반
+ *
+ * - Pure OLED 배경 (#0e1011) — 진정한 깊이감
+ * - 단일 accent (Emerald, saturation < 80%) — Lila Ban 준수
+ * - 고정 타입 스케일 (UI용) + tracking-tighter
+ * - Geist sans/mono (Pretendard Fallback for ko-KR)
+ * - 그라데이션/glow 금지
+ */
 const config: Config = {
   content: [
     './app/**/*.{ts,tsx,mdx}',
@@ -9,41 +18,111 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // 뷰어·캡처 화면은 어두운 배경이 기본. 브랜드 컬러는 v1 미정, 회색 톤으로 출발.
-        ink: {
-          50: '#f5f5f5',
-          100: '#e7e7e7',
-          200: '#c4c4c4',
-          300: '#9a9a9a',
-          400: '#707070',
-          500: '#4a4a4a',
-          600: '#2e2e2e',
-          700: '#1f1f1f',
-          800: '#151515',
-          900: '#0a0a0a',
+        // Pure OLED 기반 — taste-skill의 Dark Premium OLED 원칙
+        base: {
+          0: '#0e1011', // 순수 OLED 배경
+          50: '#141618',
+          100: '#1a1d1f',
+          200: '#24282b',
+          300: '#363b3f',
+          400: '#4a5056',
+          500: '#6a7076',
+          600: '#8b9197',
+          700: '#b2b7bc',
+          800: '#d4d7da',
+          900: '#eceeef',
         },
+        // 단일 accent — Emerald 계열 (saturation 75%)
         accent: {
-          400: '#4fd1c5',
-          500: '#2dd4bf',
-          600: '#14b8a6',
+          DEFAULT: '#10b981',
+          subtle: '#064e3b',
+          bright: '#34d399',
         },
+        // 세만틱
+        danger: '#e5484d',
+        warn: '#f59e0b',
+        success: '#10b981',
       },
       fontFamily: {
+        // 순수 시스템 폰트 스택 — 한국어는 Apple SD Gothic Neo / Malgun Gothic.
+        // taste-skill의 Geist 선호 규칙은 프로덕션에서 CDN 폰트 추가 시 대체 가능.
         sans: [
-          'Pretendard Variable',
-          'Pretendard',
           '-apple-system',
           'BlinkMacSystemFont',
-          'system-ui',
-          'Roboto',
-          'Helvetica Neue',
+          'SF Pro Display',
           'Segoe UI',
           'Apple SD Gothic Neo',
+          'Pretendard Variable',
+          'Pretendard',
           'Noto Sans KR',
           'Malgun Gothic',
           'sans-serif',
         ],
-        mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        mono: [
+          'ui-monospace',
+          'SF Mono',
+          'SFMono-Regular',
+          'Menlo',
+          'Consolas',
+          'Liberation Mono',
+          'monospace',
+        ],
+      },
+      fontSize: {
+        // 고정 타입 스케일 (UI용, fluid 금지)
+        xs: ['11px', { lineHeight: '16px', letterSpacing: '-0.01em' }],
+        sm: ['13px', { lineHeight: '20px', letterSpacing: '-0.01em' }],
+        base: ['15px', { lineHeight: '24px', letterSpacing: '-0.01em' }],
+        lg: ['17px', { lineHeight: '26px', letterSpacing: '-0.015em' }],
+        xl: ['20px', { lineHeight: '28px', letterSpacing: '-0.02em' }],
+        '2xl': ['24px', { lineHeight: '32px', letterSpacing: '-0.025em' }],
+        '3xl': ['30px', { lineHeight: '38px', letterSpacing: '-0.03em' }],
+        '4xl': ['40px', { lineHeight: '46px', letterSpacing: '-0.035em' }],
+        '5xl': ['56px', { lineHeight: '60px', letterSpacing: '-0.04em' }],
+        '6xl': ['72px', { lineHeight: '72px', letterSpacing: '-0.045em' }],
+      },
+      spacing: {
+        // 4pt 그리드 + 중간 값
+        18: '4.5rem',
+        22: '5.5rem',
+      },
+      borderRadius: {
+        // 보수적인 둥글기 — 과도한 radius 금지
+        xs: '4px',
+        sm: '6px',
+        DEFAULT: '8px',
+        md: '10px',
+        lg: '12px',
+        xl: '16px',
+      },
+      animation: {
+        // 섬세한 모션 (Emil Kowalski + taste-skill)
+        'fade-in': 'fadeIn 300ms cubic-bezier(0.16, 1, 0.3, 1)',
+        'slide-up': 'slideUp 400ms cubic-bezier(0.16, 1, 0.3, 1)',
+        'scale-in': 'scaleIn 200ms cubic-bezier(0.16, 1, 0.3, 1)',
+        shimmer: 'shimmer 2s linear infinite',
+      },
+      keyframes: {
+        fadeIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        slideUp: {
+          '0%': { opacity: '0', transform: 'translateY(8px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        scaleIn: {
+          '0%': { opacity: '0', transform: 'scale(0.96)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
+        },
+        shimmer: {
+          '0%': { backgroundPosition: '-200% 0' },
+          '100%': { backgroundPosition: '200% 0' },
+        },
+      },
+      transitionTimingFunction: {
+        'out-expo': 'cubic-bezier(0.16, 1, 0.3, 1)',
+        'out-quart': 'cubic-bezier(0.25, 1, 0.5, 1)',
       },
     },
   },

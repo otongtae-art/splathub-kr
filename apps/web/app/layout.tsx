@@ -3,11 +3,11 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: {
-    default: 'SplatHub — 카메라로 한번 찍어서 3D',
-    template: '%s · SplatHub',
+    default: 'SplatHub',
+    template: '%s — SplatHub',
   },
   description:
-    '웹캠·카메라로 바로 3D Gaussian Splat을 만들어 공유하는 무료 한국어 커뮤니티. 사진 3장이면 충분합니다.',
+    '웹캠·카메라로 바로 3D Gaussian Splat을 만들어 공유하는 한국어 커뮤니티.',
   applicationName: 'SplatHub',
   keywords: [
     'Gaussian Splatting',
@@ -37,7 +37,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: '#0a0a0a',
+  themeColor: '#0e1011',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

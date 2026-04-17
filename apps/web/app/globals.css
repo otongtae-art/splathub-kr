@@ -2,6 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 폰트는 next/font로 로드 (app/layout.tsx 참조). HMR 블로킹 방지. */
+
 @layer base {
   :root {
     color-scheme: dark;
@@ -9,23 +11,43 @@
 
   html,
   body {
-    @apply bg-ink-900 text-ink-50;
+    background-color: #0e1011;
+    color: #d4d7da;
     min-height: 100dvh;
-  }
-
-  body {
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
 
-  /* 3D 뷰어·캡처 루트 컨테이너가 화면을 꽉 채우도록 */
   body {
     margin: 0;
+    font-feature-settings: 'ss01', 'cv11';
   }
 
-  /* WebGL canvas는 기본 인라인 → display:block으로 여백 제거 */
   canvas {
     display: block;
+  }
+
+  /* 모든 포커스 링을 단일 accent로 통일 */
+  *:focus-visible {
+    outline: 1.5px solid #10b981;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* 스크롤바 — 배경과 자연스럽게 조화 */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #363b3f;
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #4a5056;
   }
 }
 
@@ -35,5 +57,23 @@
   }
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* tactile feedback — taste-skill Rule 5 */
+  .tactile:active {
+    transform: translateY(1px);
+  }
+
+  /* 점진적 스태거용 애니메이션 딜레이 — CSS 캐스케이드 */
+  .stagger-1 { animation-delay: 60ms; }
+  .stagger-2 { animation-delay: 120ms; }
+  .stagger-3 { animation-delay: 180ms; }
+  .stagger-4 { animation-delay: 240ms; }
+  .stagger-5 { animation-delay: 300ms; }
+  .stagger-6 { animation-delay: 360ms; }
+
+  /* 그라데이션 대신 쓰는 subtle inner border */
+  .hairline {
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   }
 }

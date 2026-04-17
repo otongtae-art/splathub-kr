@@ -1,13 +1,8 @@
 'use client';
 
-/**
- * /explore — 모델 갤러리 (superspl.at 스타일).
- * 트렌딩/최신/좋아요 정렬 + 태그 필터 + 검색.
- * Supabase 연결 시 실제 DB 쿼리, 미연결 시 샘플 데이터.
- */
-
 import Link from 'next/link';
 import { useState } from 'react';
+import { MagnifyingGlass, Heart, Eye } from '@phosphor-icons/react/dist/ssr';
 import { SAMPLE_MODELS } from '@/lib/samples';
 
 const SORT_OPTIONS = [
@@ -28,46 +23,59 @@ export default function ExplorePage() {
   const [time, setTime] = useState('week');
   const [search, setSearch] = useState('');
 
-  // TODO: Supabase 연결 시 실제 쿼리로 교체
   const models = SAMPLE_MODELS.filter((m) =>
     search ? m.title.toLowerCase().includes(search.toLowerCase()) : true,
   );
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
-      <nav className="flex items-center justify-between border-b border-ink-800 px-4 py-3 sm:px-6">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="text-lg font-bold text-accent-500">
+      <nav className="flex items-center justify-between border-b border-base-100 px-5 py-3.5 sm:px-8">
+        <div className="flex items-baseline gap-3">
+          <Link
+            href="/"
+            className="text-base font-semibold tracking-tight text-base-900"
+          >
             SplatHub
           </Link>
-          <span className="text-sm text-ink-400">탐색</span>
+          <span className="text-sm text-base-500">탐색</span>
         </div>
-        <div className="flex items-center gap-2 text-xs">
-          <Link href="/" className="rounded-md px-3 py-1.5 text-ink-300 hover:text-ink-50">
+        <div className="flex items-center gap-0.5 text-sm">
+          <Link
+            href="/"
+            className="tactile rounded-md px-3 py-1.5 text-base-600 transition-colors hover:bg-base-50 hover:text-base-900"
+          >
             대시보드
           </Link>
           <Link
             href="/login"
-            className="rounded-md bg-accent-500 px-3 py-1.5 text-ink-900 font-semibold"
+            className="tactile ml-1 rounded-md bg-accent px-3 py-1.5 font-medium text-base-0 transition-colors hover:bg-accent-bright"
           >
             로그인
           </Link>
         </div>
       </nav>
 
-      <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">
-        {/* 필터 바 */}
-        <div className="mb-6 flex flex-wrap items-center gap-3">
-          <div className="flex rounded-lg border border-ink-700 bg-ink-800/40 p-0.5">
+      <main className="mx-auto w-full max-w-[1400px] px-5 py-8 sm:px-8 sm:py-10">
+        <header className="mb-8 flex flex-col gap-1 animate-slide-up">
+          <h1 className="text-3xl font-semibold tracking-tight text-base-900">
+            모델 탐색
+          </h1>
+          <p className="text-sm text-base-500">
+            커뮤니티가 만든 3D Gaussian Splat 모델을 둘러보세요.
+          </p>
+        </header>
+
+        <div className="mb-8 flex flex-wrap items-center gap-3 border-b border-base-100 pb-5">
+          <div className="flex overflow-hidden rounded-md border border-base-200">
             {SORT_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
                 type="button"
                 onClick={() => setSort(opt.value)}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                className={`px-3 py-1.5 text-sm transition-colors ${
                   sort === opt.value
-                    ? 'bg-accent-500 text-ink-900'
-                    : 'text-ink-300 hover:text-ink-50'
+                    ? 'bg-base-900 text-base-0'
+                    : 'bg-base-50 text-base-600 hover:text-base-900'
                 }`}
               >
                 {opt.label}
@@ -75,16 +83,16 @@ export default function ExplorePage() {
             ))}
           </div>
 
-          <div className="flex rounded-lg border border-ink-700 bg-ink-800/40 p-0.5">
+          <div className="flex gap-1">
             {TIME_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
                 type="button"
                 onClick={() => setTime(opt.value)}
-                className={`rounded-md px-2.5 py-1.5 text-xs transition ${
+                className={`rounded-md px-2.5 py-1.5 text-xs transition-colors ${
                   time === opt.value
-                    ? 'bg-ink-700 text-ink-50'
-                    : 'text-ink-400 hover:text-ink-200'
+                    ? 'text-base-900'
+                    : 'text-base-500 hover:text-base-700'
                 }`}
               >
                 {opt.label}
@@ -92,72 +100,72 @@ export default function ExplorePage() {
             ))}
           </div>
 
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="모델 검색..."
-            className="ml-auto rounded-lg border border-ink-700 bg-ink-800 px-3 py-1.5 text-xs text-ink-50 placeholder:text-ink-500 focus:border-accent-500 focus:outline-none"
-          />
+          <div className="relative ml-auto">
+            <MagnifyingGlass
+              size={14}
+              weight="regular"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-base-500"
+            />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="검색"
+              className="w-48 rounded-md border border-base-200 bg-base-50 py-1.5 pl-8 pr-3 text-sm text-base-900 placeholder:text-base-500 focus:border-accent focus:outline-none"
+            />
+          </div>
         </div>
 
-        {/* 모델 그리드 */}
         {models.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-3 py-20">
-            <p className="text-lg font-semibold text-ink-200">아직 모델이 없습니다</p>
-            <p className="text-sm text-ink-400">
-              사진을 올려서 첫 3D 모델을 만들어 보세요!
+          <div className="flex flex-col items-center gap-3 py-24 text-center">
+            <p className="text-lg font-medium text-base-800">아직 모델이 없습니다</p>
+            <p className="max-w-xs text-sm text-base-500">
+              사진을 올려서 첫 3D 모델을 만들어 보세요.
             </p>
             <Link
               href="/"
-              className="mt-2 rounded-lg bg-accent-500 px-5 py-2.5 text-sm font-semibold text-ink-900"
+              className="tactile mt-3 inline-flex items-center gap-1.5 rounded-md bg-accent px-4 py-2 text-sm font-medium text-base-0"
             >
-              3D 모델 만들기
+              모델 만들기
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {models.map((model) => (
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {models.map((model, idx) => (
               <Link
                 key={model.id}
                 href={`/m/${model.slug}`}
-                className="group overflow-hidden rounded-xl border border-ink-700 bg-ink-800/40 transition hover:border-ink-500"
+                className={`group flex flex-col gap-3 animate-slide-up stagger-${Math.min(idx + 1, 5)}`}
               >
-                <div className="aspect-[4/3] bg-ink-900">
+                <div className="aspect-[4/3] overflow-hidden rounded-md border border-base-100 bg-base-50">
                   {model.thumbnail_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
+                    /* eslint-disable-next-line @next/next/no-img-element */
                     <img
                       src={model.thumbnail_url}
                       alt={model.title}
-                      className="h-full w-full object-cover transition group-hover:scale-105"
+                      className="h-full w-full object-cover transition-transform duration-500 ease-out-expo group-hover:scale-[1.03]"
                     />
                   ) : (
-                    <div className="flex h-full items-center justify-center text-3xl text-ink-600">
-                      🧊
+                    <div className="flex h-full items-center justify-center text-base-400">
+                      <span className="font-mono text-xs">3D</span>
                     </div>
                   )}
                 </div>
-                <div className="p-3">
-                  <h3 className="text-sm font-semibold text-ink-100 group-hover:text-accent-500">
+                <div className="flex flex-col gap-1">
+                  <h3 className="text-sm font-medium text-base-900 transition-colors group-hover:text-accent-bright">
                     {model.title}
                   </h3>
-                  <div className="mt-1 flex items-center gap-3 text-[10px] text-ink-400">
+                  <div className="flex items-center gap-3 text-xs text-base-500">
                     <span>@{model.author_handle}</span>
-                    <span>♥ {model.like_count}</span>
-                    <span>👁 {model.view_count}</span>
+                    <span className="inline-flex items-center gap-1">
+                      <Heart size={11} weight="regular" />
+                      {model.like_count}
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <Eye size={11} weight="regular" />
+                      {model.view_count}
+                    </span>
                   </div>
-                  {model.tags.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {model.tags.slice(0, 3).map((tag) => (
-                        <span
-                          key={tag}
-                          className="rounded-full bg-ink-700 px-2 py-0.5 text-[9px] text-ink-300"
-                        >
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
                 </div>
               </Link>
             ))}

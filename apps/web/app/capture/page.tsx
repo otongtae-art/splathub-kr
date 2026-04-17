@@ -1,26 +1,19 @@
 'use client';
 
-/**
- * /capture — 웹캠/스마트폰 카메라 실시간 캡처.
- *
- * 사용자가 대상 주변을 돌면서 촬영하면 자동/수동으로 프레임을 캡처하고,
- * 충분한 장수가 모이면 /api/upload/file + /api/jobs 로 변환을 시작한다.
- *
- * 비개발자도 스마트폰 웹 브라우저에서 직관적으로 쓸 수 있어야 한다.
- */
-
 import { useCallback, useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
+import {
+  Camera,
+  X,
+  ArrowLeft,
+  Stop,
+  ArrowsCounterClockwise,
+} from '@phosphor-icons/react/dist/ssr';
 import JobProgress from '@/components/upload/JobProgress';
 
 const ViewerShell = dynamic(() => import('@/components/viewer/ViewerShell'), {
   ssr: false,
-  loading: () => (
-    <div className="flex h-full w-full items-center justify-center text-sm text-ink-400">
-      뷰어 준비 중…
-    </div>
-  ),
 });
 
 type CapturedFrame = {
@@ -41,13 +34,12 @@ export default function CapturePage() {
   const [jobId, setJobId] = useState<string | null>(null);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
 
-  // 카메라 시작
   const startCamera = useCallback(async () => {
     try {
       setCameraError(null);
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: 'environment', // 후면 카메라 우선 (모바일)
+          facingMode: 'environment',
           width: { ideal: 1920 },
           height: { ideal: 1080 },
         },
@@ -61,7 +53,7 @@ export default function CapturePage() {
     } catch (err) {
       const msg = (err as Error).message;
       if (msg.includes('NotAllowed') || msg.includes('Permission')) {
-        setCameraError('카메라 접근이 거부되었습니다. 브라우저 설정에서 카메라 권한을 허용해주세요.');
+        setCameraError('카메라 접근이 거부되었습니다. 브라우저 설정에서 허용해주세요.');
       } else if (msg.includes('NotFound')) {
         setCameraError('카메라를 찾을 수 없습니다. 웹캠이 연결되어 있는지 확인해주세요.');
       } else {
@@ -70,14 +62,12 @@ export default function CapturePage() {
     }
   }, []);
 
-  // 카메라 중지
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     setCameraActive(false);
   }, []);
 
-  // 셔터 — 현재 비디오 프레임을 캡처
   const captureFrame = useCallback(() => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -104,7 +94,6 @@ export default function CapturePage() {
     );
   }, []);
 
-  // 프레임 삭제
   const removeFrame = useCallback((id: string) => {
     setFrames((prev) => {
       const removed = prev.find((f) => f.id === id);
@@ -113,14 +102,12 @@ export default function CapturePage() {
     });
   }, []);
 
-  // 변환 시작
   const submitFrames = useCallback(async () => {
     if (frames.length === 0) return;
     stopCamera();
     setStep('processing');
 
     try {
-      // 로컬 업로드
       const formData = new FormData();
       frames.forEach((f, i) => {
         formData.append('files', f.blob, `capture_${i}.jpg`);
@@ -136,7 +123,6 @@ export default function CapturePage() {
         uploads: Array<{ upload_id: string }>;
       };
 
-      // Job 생성
       const jobRes = await fetch('/api/jobs', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -156,7 +142,6 @@ export default function CapturePage() {
     }
   }, [frames, stopCamera]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       stopCamera();
@@ -166,62 +151,62 @@ export default function CapturePage() {
   }, []);
 
   return (
-    <div className="flex min-h-[100dvh] flex-col bg-ink-900">
-      {/* 상단 */}
-      <nav className="flex items-center justify-between border-b border-ink-800 px-4 py-3">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="text-lg font-bold text-accent-500">
+    <div className="flex min-h-[100dvh] flex-col">
+      <nav className="flex items-center justify-between border-b border-base-100 px-5 py-3.5 sm:px-8">
+        <div className="flex items-baseline gap-3">
+          <Link
+            href="/"
+            className="text-base font-semibold tracking-tight text-base-900"
+          >
             SplatHub
           </Link>
-          <span className="text-sm text-ink-400">카메라 캡처</span>
+          <span className="text-sm text-base-500">카메라 캡처</span>
         </div>
-        <Link href="/" className="text-xs text-ink-400 hover:text-ink-100">
-          ← 대시보드
+        <Link
+          href="/"
+          className="tactile inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-base-600 transition-colors hover:bg-base-50 hover:text-base-900"
+        >
+          <ArrowLeft size={13} weight="regular" />
+          대시보드
         </Link>
       </nav>
 
       <main className="flex flex-1 flex-col">
-        {/* 캡처 단계 */}
         {step === 'capture' && (
           <>
-            {/* 카메라 뷰 */}
             <div className="relative flex-1 bg-black">
               {!cameraActive ? (
-                <div className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center">
+                <div className="flex h-full flex-col items-center justify-center gap-5 px-6 text-center animate-slide-up">
                   {cameraError ? (
                     <>
-                      <p className="text-sm text-red-300">{cameraError}</p>
+                      <p className="max-w-sm text-sm text-danger">{cameraError}</p>
                       <button
                         type="button"
                         onClick={startCamera}
-                        className="rounded-lg bg-accent-500 px-5 py-2.5 text-sm font-semibold text-ink-900"
+                        className="tactile inline-flex items-center gap-1.5 rounded-md bg-accent px-4 py-2 text-sm font-medium text-base-0"
                       >
                         다시 시도
                       </button>
                     </>
                   ) : (
                     <>
-                      <div className="text-4xl">📷</div>
-                      <p className="text-lg font-semibold text-ink-100">
-                        카메라로 3D 모델 만들기
-                      </p>
-                      <p className="max-w-sm text-sm text-ink-300">
-                        대상을 중앙에 놓고, 천천히 주변을 돌면서 셔터를 눌러주세요.
-                        3장 이상이면 변환할 수 있어요.
-                      </p>
+                      <Camera size={40} weight="thin" className="text-base-500" />
+                      <div className="flex flex-col gap-1.5">
+                        <h1 className="text-2xl font-semibold tracking-tight text-base-900">
+                          카메라로 3D 만들기
+                        </h1>
+                        <p className="max-w-sm text-sm text-base-500">
+                          대상을 중앙에 놓고, 천천히 주변을 돌면서 셔터를 눌러주세요.
+                          3장 이상이면 변환할 수 있습니다.
+                        </p>
+                      </div>
                       <button
                         type="button"
                         onClick={startCamera}
-                        className="rounded-lg bg-accent-500 px-6 py-3 text-base font-semibold text-ink-900 shadow-lg shadow-accent-500/20"
+                        className="tactile inline-flex items-center gap-1.5 rounded-md bg-accent px-5 py-2.5 text-sm font-medium text-base-0 transition-colors hover:bg-accent-bright"
                       >
                         카메라 시작
                       </button>
-                      <Link
-                        href="/"
-                        className="text-xs text-ink-400 hover:text-ink-100"
-                      >
-                        파일 업로드로 돌아가기
-                      </Link>
                     </>
                   )}
                 </div>
@@ -234,27 +219,23 @@ export default function CapturePage() {
                     muted
                     className="h-full w-full object-cover"
                   />
-                  {/* 가이드 오버레이 */}
                   <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                    <div className="h-48 w-48 rounded-full border-2 border-white/20 sm:h-64 sm:w-64" />
+                    <div className="h-56 w-56 rounded-full border border-white/20 sm:h-72 sm:w-72" />
                   </div>
-                  {/* 캡처 카운트 */}
-                  <div className="absolute left-4 top-4 rounded-full bg-ink-900/80 px-3 py-1 text-sm font-semibold text-ink-50">
-                    {frames.length}장 촬영됨
+                  <div className="absolute left-5 top-5 font-mono text-sm text-white/90">
+                    {String(frames.length).padStart(2, '0')}
                   </div>
                 </>
               )}
             </div>
 
-            {/* 하단 컨트롤 */}
-            <div className="safe-bottom border-t border-ink-800 bg-ink-900 p-4">
-              {/* 캡처된 프레임 썸네일 */}
+            <div className="safe-bottom border-t border-base-100 px-5 py-4 sm:px-8">
               {frames.length > 0 && (
-                <div className="mb-3 flex gap-2 overflow-x-auto pb-2">
+                <div className="mb-4 flex gap-2 overflow-x-auto">
                   {frames.map((f) => (
                     <div
                       key={f.id}
-                      className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg border border-ink-700"
+                      className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-md border border-base-200"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
@@ -265,56 +246,55 @@ export default function CapturePage() {
                       <button
                         type="button"
                         onClick={() => removeFrame(f.id)}
-                        className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[8px] text-white"
+                        className="tactile absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/80 text-white"
                       >
-                        ×
+                        <X size={9} weight="bold" />
                       </button>
                     </div>
                   ))}
                 </div>
               )}
 
-              <div className="flex items-center justify-center gap-4">
-                {cameraActive && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={stopCamera}
-                      className="rounded-lg border border-ink-600 bg-ink-800 px-4 py-2 text-sm text-ink-200"
-                    >
-                      중지
-                    </button>
-                    <button
-                      type="button"
-                      onClick={captureFrame}
-                      className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-white bg-white/10 text-2xl shadow-lg transition active:scale-90"
-                    >
-                      📸
-                    </button>
-                    <button
-                      type="button"
-                      onClick={submitFrames}
-                      disabled={frames.length < 1}
-                      className="rounded-lg bg-accent-500 px-4 py-2 text-sm font-semibold text-ink-900 disabled:opacity-40"
-                    >
-                      변환 ({frames.length})
-                    </button>
-                  </>
-                )}
-              </div>
+              {cameraActive && (
+                <div className="flex items-center justify-center gap-4">
+                  <button
+                    type="button"
+                    onClick={stopCamera}
+                    className="tactile inline-flex items-center gap-1.5 rounded-md border border-base-200 bg-base-50 px-3 py-2 text-sm text-base-700"
+                  >
+                    <Stop size={13} weight="regular" />
+                    중지
+                  </button>
+                  <button
+                    type="button"
+                    onClick={captureFrame}
+                    aria-label="촬영"
+                    className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-white bg-white/10 transition-transform active:scale-90"
+                  />
+                  <button
+                    type="button"
+                    onClick={submitFrames}
+                    disabled={frames.length < 1}
+                    className="tactile inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-2 text-sm font-medium text-base-0 transition-colors hover:bg-accent-bright disabled:bg-base-200 disabled:text-base-500"
+                  >
+                    변환 · {frames.length}
+                  </button>
+                </div>
+              )}
             </div>
           </>
         )}
 
-        {/* 변환 진행 */}
         {step === 'processing' && jobId && (
-          <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6">
-            <h2 className="text-xl font-semibold">3D 모델 생성 중...</h2>
+          <div className="flex flex-1 flex-col items-center justify-center gap-5 px-6 animate-fade-in">
+            <h2 className="text-2xl font-semibold tracking-tight text-base-900">
+              3D 모델 생성 중
+            </h2>
             <div className="w-full max-w-md">
               <JobProgress
                 jobId={jobId}
                 onDone={() => {
-                  setResultUrl('/samples/bonsai.spz'); // TODO: 실제 결과 URL
+                  setResultUrl('/samples/butterfly.spz');
                   setStep('view');
                 }}
                 onError={() => {
@@ -326,13 +306,12 @@ export default function CapturePage() {
           </div>
         )}
 
-        {/* 결과 뷰어 */}
         {step === 'view' && resultUrl && (
-          <div className="flex flex-1 flex-col">
+          <div className="flex flex-1 flex-col animate-scale-in">
             <div className="flex-1">
               <ViewerShell url={resultUrl} autoRotate minimal />
             </div>
-            <div className="flex items-center justify-center gap-3 border-t border-ink-800 p-4 safe-bottom">
+            <div className="safe-bottom flex items-center justify-center gap-2 border-t border-base-100 px-5 py-4 sm:px-8">
               <button
                 type="button"
                 onClick={() => {
@@ -341,13 +320,14 @@ export default function CapturePage() {
                   setResultUrl(null);
                   setFrames([]);
                 }}
-                className="rounded-lg bg-accent-500 px-5 py-2.5 text-sm font-semibold text-ink-900"
+                className="tactile inline-flex items-center gap-1.5 rounded-md bg-accent px-4 py-2 text-sm font-medium text-base-0 transition-colors hover:bg-accent-bright"
               >
+                <ArrowsCounterClockwise size={13} weight="regular" />
                 한 번 더 촬영
               </button>
               <Link
                 href="/"
-                className="rounded-lg border border-ink-600 bg-ink-800 px-5 py-2.5 text-sm text-ink-100"
+                className="tactile inline-flex items-center gap-1.5 rounded-md border border-base-200 bg-base-50 px-4 py-2 text-sm text-base-700"
               >
                 대시보드로
               </Link>
@@ -356,7 +336,6 @@ export default function CapturePage() {
         )}
       </main>
 
-      {/* 숨겨진 캔버스 (프레임 캡처용) */}
       <canvas ref={canvasRef} className="hidden" />
     </div>
   );
