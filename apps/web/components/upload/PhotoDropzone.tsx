@@ -13,6 +13,7 @@ import { useDropzone, type FileRejection } from 'react-dropzone';
 import { UploadSimple, X, Check, WarningCircle } from '@phosphor-icons/react/dist/ssr';
 import { INPUT_LIMITS } from '@/lib/shared';
 import { startMockJob } from '@/lib/mockFlow';
+import type { ReconstructionMode } from '@/lib/gen3d';
 
 type UploadItem = {
   id: string;
@@ -24,9 +25,11 @@ type UploadItem = {
 type Props = {
   /** jobId와 썸네일 URL을 부모에게 전달 */
   onJobCreated: (jobId: string, thumbnailUrl: string) => void;
+  /** 재구성 모드 — object(객체) or scene(공간) */
+  mode?: ReconstructionMode;
 };
 
-export default function PhotoDropzone({ onJobCreated }: Props) {
+export default function PhotoDropzone({ onJobCreated, mode = 'object' }: Props) {
   const [items, setItems] = useState<UploadItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
@@ -91,7 +94,7 @@ export default function PhotoDropzone({ onJobCreated }: Props) {
       // 첫 사진을 썸네일로 사용, 실제 파일 배열을 gen3d에 전달
       const thumbnailUrl = items[0]?.previewUrl ?? '';
       const files = items.map((i) => i.file);
-      const jobId = startMockJob({ thumbnailUrl, files });
+      const jobId = startMockJob({ thumbnailUrl, files, mode });
       onJobCreated(jobId, thumbnailUrl);
     } catch (err) {
       setGlobalError((err as Error).message);

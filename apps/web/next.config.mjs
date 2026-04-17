@@ -10,19 +10,30 @@ const nextConfig = {
   outputFileTracingRoot: __dirname,
   // Skills 디렉토리는 앱 소스가 아니므로 webpack watch에서 제외
   // (500+ 파일이 HMR watcher를 느리게 만드는 것을 방지)
-  webpack: (config, { dev }) => {
+  // Spark.js는 Three.js side-effect + WebGL shader를 번들에 포함한다.
+  transpilePackages: ['@sparkjsdev/spark', 'three'],
+  // transformers.js의 onnxruntime-node는 브라우저 번들에 들어가면 깨짐 — server-only로 마킹
+  serverExternalPackages: ['onnxruntime-node'],
+  webpack: (config, { dev, isServer }) => {
     if (dev) {
       config.watchOptions = {
         ...config.watchOptions,
         ignored: ['**/node_modules/**', '**/.agents/**', '**/.next/**', '**/.git/**'],
       };
     }
+    // 클라이언트 번들에서 node-only 모듈 제외
+    if (!isServer) {
+      config.resolve = config.resolve || {};
+      config.resolve.fallback = {
+        ...(config.resolve.fallback || {}),
+        fs: false,
+        path: false,
+        crypto: false,
+        'onnxruntime-node': false,
+      };
+    }
     return config;
   },
-  // Spark.js는 Three.js side-effect + WebGL shader를 번들에 포함한다. Cloudflare Pages
-  // Edge runtime은 WebGL/Canvas 접근 불가 → 뷰어 페이지는 반드시 클라이언트 렌더링.
-  transpilePackages: ['@sparkjsdev/spark', 'three'],
-  serverExternalPackages: [],
   // R2 / HF Dataset 원격 이미지 썸네일 허용
   images: {
     remotePatterns: [

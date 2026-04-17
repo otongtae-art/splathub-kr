@@ -12,7 +12,8 @@
  */
 
 import type { JobStatus } from './shared/types';
-import { generateSplatFromPhotos } from './gen3d';
+import { generateSplatFromPhotos, type ReconstructionMode } from './gen3d';
+import type { DepthProgress } from './depth';
 
 export type MockJobSnapshot = {
   id: string;
@@ -55,6 +56,7 @@ function emit(id: string, patch: Partial<MockJobSnapshot>) {
 export function startMockJob(options: {
   thumbnailUrl: string | null;
   files?: File[];
+  mode?: ReconstructionMode;
 }): string {
   const id = randomId();
   const initial: MockJobSnapshot = {
@@ -74,7 +76,7 @@ export function startMockJob(options: {
 
   // 파일이 있으면 실제 생성, 없으면 데모(샘플)
   if (options.files && options.files.length > 0) {
-    runGeneration(id, options.files).catch((err) => {
+    runGeneration(id, options.files, options.mode ?? 'object').catch((err) => {
       console.error('[gen3d] failed', err);
       emit(id, {
         status: 'failed',
@@ -99,34 +101,50 @@ export function startMockJob(options: {
 }
 
 /**
- * 실제 생성 구동 — 상태를 단계별로 방출하며 gen3d 실행.
+ * 실제 생성 구동 — gen3d(depth-based 3D)를 실행하며 상태 방출.
  */
-async function runGeneration(id: string, files: File[]): Promise<void> {
-  emit(id, { status: 'preprocessing', progress: 10 });
+async function runGeneration(
+  id: string,
+  files: File[],
+  mode: ReconstructionMode,
+): Promise<void> {
+  emit(id, { status: 'preprocessing', progress: 5 });
   await tick();
-
-  emit(id, { status: 'pose_estimation', progress: 25 });
-  await tick();
-
-  emit(id, { status: 'training', progress: 40 });
 
   const plyBytes = await generateSplatFromPhotos(files, {
-    onProgress: (frac) => {
-      // 40% ~ 85% 구간을 생성 진행률로 매핑
-      const pct = Math.round(40 + frac * 45);
-      emit(id, { status: 'training', progress: pct });
+    mode,
+    onProgress: (frac: number) => {
+      // 전체 구간 5% ~ 90% 를 gen3d 진행률로 매핑
+      const pct = Math.round(5 + frac * 85);
+      // 단계 추정
+      let status: JobStatus = 'preprocessing';
+      if (pct < 20) status = 'preprocessing';
+      else if (pct < 50) status = 'pose_estimation';
+      else if (pct < 85) status = 'training';
+      else status = 'postprocessing';
+      emit(id, { status, progress: pct });
+    },
+    onModelProgress: (mp: DepthProgress) => {
+      // 모델 다운로드 진행률을 preprocessing 단계로 매핑
+      if (mp.stage === 'downloading' && typeof mp.progress === 'number') {
+        emit(id, {
+          status: 'preprocessing',
+          progress: Math.round(mp.progress * 10),
+          error_message: `AI 모델 다운로드 중 ${Math.round(mp.progress * 100)}%`,
+        });
+      }
     },
   });
 
-  emit(id, { status: 'postprocessing', progress: 90 });
+  emit(id, { status: 'postprocessing', progress: 95, error_message: null });
   await tick();
 
   emit(id, {
     status: 'done',
     progress: 100,
     result_model_id: `model-${id}`,
-    // 바이트 배열을 viewer에 직접 전달 — Blob URL 포맷 감지 실패 회피
     result_ply_bytes: plyBytes,
+    error_message: null,
   });
 }
 

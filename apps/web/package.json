@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.1.0",
     "@phosphor-icons/react": "^2.1.10",
     "@sparkjsdev/spark": "^2.0.0",
     "@supabase/ssr": "^0.10.2",

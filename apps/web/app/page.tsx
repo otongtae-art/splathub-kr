@@ -24,9 +24,13 @@ import {
   Check,
   DownloadSimple,
   Plus,
+  Cube,
+  House,
+  MagicWand,
 } from '@phosphor-icons/react/dist/ssr';
 import PhotoDropzone from '@/components/upload/PhotoDropzone';
 import JobProgress from '@/components/upload/JobProgress';
+import type { ReconstructionMode } from '@/lib/gen3d';
 
 const ViewerShell = dynamic(() => import('@/components/viewer/ViewerShell'), {
   ssr: false,
@@ -55,6 +59,7 @@ export default function DashboardPage() {
   const [myModels, setMyModels] = useState<ModelEntry[]>([]);
   const [copied, setCopied] = useState(false);
   const [sourceThumbnail, setSourceThumbnail] = useState<string | null>(null);
+  const [mode, setMode] = useState<ReconstructionMode>('auto');
 
   const handleJobCreated = useCallback((id: string, thumbnailUrl: string) => {
     setJobId(id);
@@ -142,29 +147,88 @@ export default function DashboardPage() {
                   사진으로 3D 모델 만들기
                 </h1>
                 <p className="max-w-[55ch] text-base text-base-600">
-                  대상을 여러 각도에서 찍은 사진 1–5장을 올리면 3D Gaussian Splat으로 변환됩니다.
+                  AI 깊이 추정(Depth Anything V2) 으로 객체 또는 공간의 3D Gaussian Splat 을
+                  브라우저 안에서 직접 생성합니다.
                 </p>
               </header>
 
-              <PhotoDropzone onJobCreated={handleJobCreated} />
+              {/* 모드 선택 — 자동 / 객체 / 공간 */}
+              <div className="grid grid-cols-3 gap-2 rounded-lg border border-base-100 bg-base-50 p-1.5">
+                <ModeButton
+                  active={mode === 'auto'}
+                  onClick={() => setMode('auto')}
+                  icon={<MagicWand size={16} weight="regular" />}
+                  label="자동"
+                  description="AI가 판단"
+                  hint="depth 분포로 판별"
+                />
+                <ModeButton
+                  active={mode === 'object'}
+                  onClick={() => setMode('object')}
+                  icon={<Cube size={16} weight="regular" />}
+                  label="객체"
+                  description="제품·가구·인형"
+                  hint="주변 돌며 촬영"
+                />
+                <ModeButton
+                  active={mode === 'scene'}
+                  onClick={() => setMode('scene')}
+                  icon={<House size={16} weight="regular" />}
+                  label="공간"
+                  description="방·아파트"
+                  hint="제자리 회전"
+                />
+              </div>
+
+              <PhotoDropzone onJobCreated={handleJobCreated} mode={mode} />
 
               <aside className="divide-y divide-base-100 border-t border-base-100 pt-6">
+                {mode === 'auto' && (
+                  <>
+                    <TipRow
+                      label="자동"
+                      text="어떻게 찍어도 OK. depth 분포를 분석해 객체·공간을 판별합니다."
+                    />
+                    <TipRow
+                      label="팁"
+                      text="객체는 주변을 돌면서, 공간은 제자리 회전. 둘 다 가능."
+                    />
+                  </>
+                )}
+                {mode === 'object' && (
+                  <>
+                    <TipRow
+                      label="촬영"
+                      text="대상 주변을 천천히 한 바퀴 돌면서 같은 거리에서 촬영."
+                    />
+                    <TipRow
+                      label="시점"
+                      text="카메라를 대상 중심에 맞추고 안쪽을 바라봅니다."
+                    />
+                  </>
+                )}
+                {mode === 'scene' && (
+                  <>
+                    <TipRow
+                      label="촬영"
+                      text="한 지점에 서서 제자리에서 90도씩 회전하며 촬영."
+                    />
+                    <TipRow
+                      label="시점"
+                      text="벽·가구 바깥쪽을 바라보며 가로/세로 모두 담기게."
+                    />
+                  </>
+                )}
+                <TipRow label="분량" text="최소 3장, 8장 이상이면 더 정밀." />
                 <TipRow
-                  label="각도"
-                  text="대상 주변을 천천히 한 바퀴 돌면서 촬영하세요."
+                  label="보정"
+                  text="흔들린 사진은 자동 제거, 어두운 사진은 자동 밝기 보정."
                 />
                 <TipRow
-                  label="품질"
-                  text="흔들림이 적고 초점이 맞는 사진이 좋습니다."
+                  label="AI"
+                  text="첫 사용 시 Depth Anything V2(~50MB) 자동 다운로드."
                 />
-                <TipRow
-                  label="분량"
-                  text="최소 3장, 8장 이상이면 더 정밀한 결과를 얻습니다."
-                />
-                <TipRow
-                  label="형식"
-                  text="JPEG · PNG · HEIC, 장당 10MB 이하."
-                />
+                <TipRow label="형식" text="JPEG · PNG · HEIC · 장당 10MB 이하." />
               </aside>
             </div>
           )}
@@ -324,6 +388,45 @@ export default function DashboardPage() {
         </div>
       </footer>
     </div>
+  );
+}
+
+function ModeButton({
+  active,
+  onClick,
+  icon,
+  label,
+  description,
+  hint,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+  description: string;
+  hint: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`tactile flex flex-col items-start gap-1 rounded-md p-3 text-left transition-colors ${
+        active
+          ? 'bg-base-0 text-base-900 shadow-sm'
+          : 'text-base-600 hover:bg-base-100 hover:text-base-800'
+      }`}
+    >
+      <div className="flex items-center gap-1.5">
+        {icon}
+        <span className="text-sm font-medium">{label}</span>
+      </div>
+      <span className="text-xs text-base-500">{description}</span>
+      <span
+        className={`text-[11px] ${active ? 'text-accent-bright' : 'text-base-400'}`}
+      >
+        {hint}
+      </span>
+    </button>
   );
 }
 
