@@ -61,7 +61,9 @@ export default function ConvertPage() {
         <section className="flex flex-col gap-3 animate-fade-in">
           <JobProgress
             jobId={jobId}
-            onDone={() => setResultSpzUrl('/samples/butterfly.spz')}
+            onDone={(snap) =>
+              setResultSpzUrl(snap.result_ply_url || '/samples/butterfly.spz')
+            }
             onError={() => setFailed(true)}
           />
           <button

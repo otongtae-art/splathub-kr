@@ -88,9 +88,10 @@ export default function PhotoDropzone({ onJobCreated }: Props) {
       await new Promise((r) => setTimeout(r, 450));
       setItems((prev) => prev.map((p) => ({ ...p, status: 'done' as const })));
 
-      // 첫 사진을 썸네일로 사용
+      // 첫 사진을 썸네일로 사용, 실제 파일 배열을 gen3d에 전달
       const thumbnailUrl = items[0]?.previewUrl ?? '';
-      const jobId = startMockJob({ thumbnailUrl });
+      const files = items.map((i) => i.file);
+      const jobId = startMockJob({ thumbnailUrl, files });
       onJobCreated(jobId, thumbnailUrl);
     } catch (err) {
       setGlobalError((err as Error).message);

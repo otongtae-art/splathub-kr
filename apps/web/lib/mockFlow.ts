@@ -1,19 +1,18 @@
 'use client';
 
 /**
- * 클라이언트 사이드 mock 변환 플로우.
+ * 클라이언트 사이드 "작업 상태" EventEmitter.
  *
- * Vercel 서버리스 환경에서는 파일시스템 쓰기가 제한되고 setTimeout 기반
- * 지연도 동작하지 않는다. 실제 HF Space GPU 워커가 연결되기 전까지는
- * 모든 데모 흐름을 브라우저 안에서 처리한다.
+ * 실제 3D Splat 생성(lib/gen3d.ts)을 구동하면서 상태 전환 이벤트를 JobProgress
+ * 컴포넌트로 스트리밍한다. 파일 이름은 역사적 이유로 mockFlow지만 더 이상 mock이
+ * 아니다 — 실제 사용자 사진에서 .ply 를 생성하고 Blob URL 을 결과로 돌려준다.
  *
- * 이 파일이 서버 fetch를 대체:
- *   - 파일은 URL.createObjectURL로 메모리에만 보관
- *   - job은 EventEmitter로 상태를 단계별로 방출
- *   - 결과는 샘플 .spz를 가리키되, 썸네일은 실제 업로드 첫 장 사용
+ * HF Space + VGGT/FreeSplatter 서버 엔진으로 업그레이드할 경우 `runGeneration`
+ * 구현만 교체하면 됨.
  */
 
 import type { JobStatus } from './shared/types';
+import { generateSplatFromPhotos } from './gen3d';
 
 export type MockJobSnapshot = {
   id: string;
@@ -21,9 +20,9 @@ export type MockJobSnapshot = {
   progress: number;
   worker_backend: string | null;
   result_model_id: string | null;
+  result_ply_url: string | null;
   error_code: string | null;
   error_message: string | null;
-  /** 업로드된 첫 사진 URL — 뷰어 진입 전 썸네일로 사용 */
   thumbnail_url: string | null;
 };
 
@@ -33,7 +32,7 @@ const jobs = new Map<string, MockJobSnapshot>();
 const listeners = new Map<string, Set<Listener>>();
 
 function randomId(): string {
-  return `mock-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
+  return `job-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
 }
 
 function emit(id: string, patch: Partial<MockJobSnapshot>) {
@@ -45,17 +44,20 @@ function emit(id: string, patch: Partial<MockJobSnapshot>) {
 }
 
 /**
- * 새 mock 작업을 등록하고 단계별 상태 전환을 예약한다.
- * 반환된 jobId를 JobProgress에 전달.
+ * 새 작업을 시작. 실제 3D 생성 파이프라인을 구동하고 상태 변화를 emit.
  */
-export function startMockJob(options: { thumbnailUrl: string | null }): string {
+export function startMockJob(options: {
+  thumbnailUrl: string | null;
+  files?: File[];
+}): string {
   const id = randomId();
   const initial: MockJobSnapshot = {
     id,
     status: 'queued',
     progress: 0,
-    worker_backend: 'mock',
+    worker_backend: 'browser_gen3d',
     result_model_id: null,
+    result_ply_url: null,
     error_code: null,
     error_message: null,
     thumbnail_url: options.thumbnailUrl,
@@ -63,31 +65,73 @@ export function startMockJob(options: { thumbnailUrl: string | null }): string {
   jobs.set(id, initial);
   listeners.set(id, new Set());
 
-  // 단계별 전환 — 실제 엔진 연결 시 이 배열을 HF Space 폴링 결과로 대체
-  const steps: Array<{ delay: number; status: JobStatus; progress: number }> = [
-    { delay: 200, status: 'preprocessing', progress: 10 },
-    { delay: 900, status: 'pose_estimation', progress: 30 },
-    { delay: 1800, status: 'training', progress: 65 },
-    { delay: 2700, status: 'postprocessing', progress: 90 },
-    { delay: 3400, status: 'done', progress: 100 },
-  ];
-  for (const step of steps) {
+  // 파일이 있으면 실제 생성, 없으면 데모(샘플)
+  if (options.files && options.files.length > 0) {
+    runGeneration(id, options.files).catch((err) => {
+      console.error('[gen3d] failed', err);
+      emit(id, {
+        status: 'failed',
+        progress: 0,
+        error_code: 'generation_failed',
+        error_message: err instanceof Error ? err.message : String(err),
+      });
+    });
+  } else {
+    // 파일 없을 때 — 샘플 .spz 사용
     setTimeout(() => {
-      const patch: Partial<MockJobSnapshot> = {
-        status: step.status,
-        progress: step.progress,
-      };
-      if (step.status === 'done') patch.result_model_id = `model-${id}`;
-      emit(id, patch);
-    }, step.delay);
+      emit(id, {
+        status: 'done',
+        progress: 100,
+        result_model_id: `model-${id}`,
+        result_ply_url: '/samples/butterfly.spz',
+      });
+    }, 1200);
   }
 
   return id;
 }
 
+/**
+ * 실제 생성 구동 — 상태를 단계별로 방출하며 gen3d 실행.
+ */
+async function runGeneration(id: string, files: File[]): Promise<void> {
+  emit(id, { status: 'preprocessing', progress: 10 });
+  await tick();
+
+  emit(id, { status: 'pose_estimation', progress: 25 });
+  await tick();
+
+  emit(id, { status: 'training', progress: 40 });
+
+  const blob = await generateSplatFromPhotos(files, {
+    onProgress: (frac) => {
+      // 40% ~ 85% 구간을 생성 진행률로 매핑
+      const pct = Math.round(40 + frac * 45);
+      emit(id, { status: 'training', progress: pct });
+    },
+  });
+
+  emit(id, { status: 'postprocessing', progress: 90 });
+  await tick();
+
+  // Blob URL 생성 — viewer가 직접 fetch 가능
+  const plyUrl = URL.createObjectURL(blob);
+
+  emit(id, {
+    status: 'done',
+    progress: 100,
+    result_model_id: `model-${id}`,
+    result_ply_url: plyUrl,
+  });
+}
+
+function tick(ms = 60): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 export function subscribeMockJob(id: string, listener: Listener): () => void {
   const snap = jobs.get(id);
-  if (snap) listener(snap); // 초기 상태 즉시 전달
+  if (snap) listener(snap);
   let set = listeners.get(id);
   if (!set) {
     set = new Set();

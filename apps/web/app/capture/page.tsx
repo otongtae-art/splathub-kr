@@ -107,7 +107,12 @@ export default function CapturePage() {
     if (frames.length === 0) return;
     stopCamera();
     const thumbnailUrl = frames[0]?.previewUrl ?? '';
-    const id = startMockJob({ thumbnailUrl });
+    // Blob → File 변환 (gen3d는 File[]을 기대하지만 name만 있으면 됨)
+    const files = frames.map(
+      (f, i) =>
+        new File([f.blob], `capture_${i}.jpg`, { type: f.blob.type || 'image/jpeg' }),
+    );
+    const id = startMockJob({ thumbnailUrl, files });
     setJobId(id);
     setStep('processing');
   }, [frames, stopCamera]);
@@ -263,8 +268,8 @@ export default function CapturePage() {
             <div className="w-full max-w-md">
               <JobProgress
                 jobId={jobId}
-                onDone={() => {
-                  setResultUrl('/samples/butterfly.spz');
+                onDone={(snap) => {
+                  setResultUrl(snap.result_ply_url || '/samples/butterfly.spz');
                   setStep('view');
                 }}
                 onError={() => {

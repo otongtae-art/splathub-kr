@@ -59,18 +59,22 @@ export default function DashboardPage() {
     setStep('processing');
   }, []);
 
-  const handleJobDone = useCallback(() => {
-    const model: ModelEntry = {
-      id: jobId || `model-${Date.now()}`,
-      title: `모델 ${String(myModels.length + 1).padStart(2, '0')}`,
-      spzUrl: '/samples/butterfly.spz',
-      thumbnailUrl: sourceThumbnail,
-      createdAt: new Date().toLocaleString('ko-KR'),
-    };
-    setCurrentModel(model);
-    setMyModels((prev) => [model, ...prev]);
-    setStep('view');
-  }, [jobId, myModels.length, sourceThumbnail]);
+  const handleJobDone = useCallback(
+    (snap: { result_ply_url: string | null }) => {
+      const model: ModelEntry = {
+        id: jobId || `model-${Date.now()}`,
+        title: `모델 ${String(myModels.length + 1).padStart(2, '0')}`,
+        // gen3d가 생성한 실제 .ply Blob URL 우선, 실패 시 샘플로 폴백
+        spzUrl: snap.result_ply_url || '/samples/butterfly.spz',
+        thumbnailUrl: sourceThumbnail,
+        createdAt: new Date().toLocaleString('ko-KR'),
+      };
+      setCurrentModel(model);
+      setMyModels((prev) => [model, ...prev]);
+      setStep('view');
+    },
+    [jobId, myModels.length, sourceThumbnail],
+  );
 
   const handleJobError = useCallback(() => {
     setStep('upload');
