@@ -20,9 +20,11 @@
  *   - 사용자가 HF Space 직접 배포(docs/PRODUCTION.md) 하면 이 함수를 교체하면 됨
  */
 
-// 3DGS .ply 포맷: 59 properties per vertex
-// position(3) + normal(3) + SH DC(3) + SH rest(45) + opacity(1) + scale(3) + rot(4)
-const PROPS_PER_GAUSSIAN = 59;
+// 3DGS .ply 포맷 — SH degree 0 (DC only) 버전, 17 properties per vertex.
+// position(3) + normal(3) + SH DC(3) + opacity(1) + scale(3) + rot(4) = 17
+// SH rest(45)를 생략해 파일 크기·메모리·렌더 성능을 모두 개선. Spark.js는
+// SH degree 0 형식을 네이티브로 파싱한다.
+const PROPS_PER_GAUSSIAN = 17;
 const BYTES_PER_FLOAT = 4;
 const BYTES_PER_GAUSSIAN = PROPS_PER_GAUSSIAN * BYTES_PER_FLOAT;
 
@@ -184,7 +186,7 @@ function samplePhoto(
 function encodePly(points: PixelPoint[], opts: GenerationOptions): Blob {
   const count = points.length;
 
-  // 헤더
+  // 헤더 — SH degree 0 (SH rest 0개)
   const propertyLines = [
     'property float x',
     'property float y',
@@ -195,7 +197,6 @@ function encodePly(points: PixelPoint[], opts: GenerationOptions): Blob {
     'property float f_dc_0',
     'property float f_dc_1',
     'property float f_dc_2',
-    ...Array.from({ length: 45 }, (_, i) => `property float f_rest_${i}`),
     'property float opacity',
     'property float scale_0',
     'property float scale_1',
@@ -236,10 +237,7 @@ function encodePly(points: PixelPoint[], opts: GenerationOptions): Blob {
     view.setFloat32(offset, (p.r - 0.5) / SH_C0, true); offset += 4;
     view.setFloat32(offset, (p.g - 0.5) / SH_C0, true); offset += 4;
     view.setFloat32(offset, (p.b - 0.5) / SH_C0, true); offset += 4;
-    // SH rest (45개) — 모두 0
-    for (let k = 0; k < 45; k++) {
-      view.setFloat32(offset, 0, true); offset += 4;
-    }
+    // (SH rest 생략 — SH degree 0)
     // opacity (logit)
     view.setFloat32(offset, opacityLogit, true); offset += 4;
     // scale (log space)
@@ -251,6 +249,13 @@ function encodePly(points: PixelPoint[], opts: GenerationOptions): Blob {
     view.setFloat32(offset, 0, true); offset += 4;
     view.setFloat32(offset, 0, true); offset += 4;
     view.setFloat32(offset, 0, true); offset += 4;
+
+    // Sanity check — 실제 쓴 바이트 수가 선언한 BYTES_PER_GAUSSIAN과 일치해야 함
+    if (offset - i * BYTES_PER_GAUSSIAN !== BYTES_PER_GAUSSIAN) {
+      throw new Error(
+        `encodePly bug: wrote ${offset - i * BYTES_PER_GAUSSIAN} bytes but declared ${BYTES_PER_GAUSSIAN}`,
+      );
+    }
   }
 
   return new Blob([headerBytes, bodyBytes], { type: 'application/octet-stream' });
