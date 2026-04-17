@@ -3,11 +3,8 @@ const nextConfig = {
   reactStrictMode: true,
   // Spark.js는 Three.js side-effect + WebGL shader를 번들에 포함한다. Cloudflare Pages
   // Edge runtime은 WebGL/Canvas 접근 불가 → 뷰어 페이지는 반드시 클라이언트 렌더링.
-  transpilePackages: ['@splathub/shared', '@sparkjsdev/spark', 'three'],
-  experimental: {
-    // 대용량 .spz/.ply 응답 스트리밍을 위해 future-proof
-    serverComponentsExternalPackages: [],
-  },
+  transpilePackages: ['@sparkjsdev/spark', 'three'],
+  serverExternalPackages: [],
   // R2 / HF Dataset 원격 이미지 썸네일 허용
   images: {
     remotePatterns: [

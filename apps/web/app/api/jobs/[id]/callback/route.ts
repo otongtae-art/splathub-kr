@@ -9,7 +9,8 @@
  */
 
 import { NextResponse } from 'next/server';
-import { WorkerCallbackSchema, type WorkerCallbackPayload } from '@splathub/shared';
+import { WorkerCallbackSchema } from '@/lib/shared/schemas';
+import type { WorkerCallbackPayload } from '@/lib/shared/types';
 import { verify } from '@/lib/hmac';
 import { required } from '@/lib/env';
 import { applyCallback, getJob } from '@/lib/store/memoryJobs';

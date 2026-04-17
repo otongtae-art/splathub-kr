@@ -26,17 +26,28 @@ type OptionalEnvKey =
   | 'DATABASE_URL';
 
 /**
- * `required()` throws only when the value is actually read. This lets the app
- * boot without a full production config during M1 development.
+ * 개발 모드(`NODE_ENV !== 'production'`)에서는 누락된 필수 환경변수를
+ * placeholder로 대체해 앱이 정상 부팅되도록 한다. 프로덕션에서만 throw.
  */
+const DEV_PLACEHOLDERS: Record<RequiredEnvKey, string> = {
+  HF_SPACE_URL: 'http://localhost:7860',
+  JOB_CALLBACK_SECRET: 'dev-secret-not-for-production-use-change-me',
+  R2_ACCOUNT_ID: 'dev-account',
+  R2_ACCESS_KEY_ID: 'dev-key',
+  R2_SECRET_ACCESS_KEY: 'dev-secret',
+  R2_BUCKET: 'splathub-dev',
+  R2_PUBLIC_BASE: 'http://localhost:3000/samples',
+};
+
 export function required(key: RequiredEnvKey): string {
   const val = process.env[key];
-  if (!val) {
-    throw new Error(
-      `Missing required env var: ${key}. See apps/web/.env.example for the full list.`,
-    );
+  if (val) return val;
+  if (process.env.NODE_ENV !== 'production') {
+    return DEV_PLACEHOLDERS[key]!;
   }
-  return val;
+  throw new Error(
+    `Missing required env var: ${key}. See apps/web/.env.example for the full list.`,
+  );
 }
 
 export function optional(key: OptionalEnvKey): string | undefined {

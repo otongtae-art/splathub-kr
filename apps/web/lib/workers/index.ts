@@ -6,7 +6,7 @@
  * `/api/jobs/route.ts`.
  */
 
-import { WORKER_LADDER, type WorkerBackend } from '@splathub/shared';
+import { WORKER_LADDER, type WorkerBackend } from '@/lib/shared';
 import { submitToHfSpace } from './hf';
 
 export type DispatchInput = {

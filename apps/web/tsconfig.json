@@ -16,9 +16,7 @@
     "noUncheckedIndexedAccess": true,
     "plugins": [{ "name": "next" }],
     "paths": {
-      "@/*": ["./*"],
-      "@splathub/shared": ["../../packages/shared/src/index.ts"],
-      "@splathub/shared/*": ["../../packages/shared/src/*"]
+      "@/*": ["./*"]
     }
   },
   "include": [

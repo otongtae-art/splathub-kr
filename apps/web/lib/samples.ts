@@ -9,7 +9,7 @@
  * 재배포 가능한 파일을 R2 또는 public/samples/ 에 올려 사용한다. 저작권 확인된 것만.
  */
 
-import type { Model } from '@splathub/shared/types';
+import type { Model } from '@/lib/shared/types';
 
 export type SampleModel = Pick<
   Model,

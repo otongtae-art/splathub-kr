@@ -7,7 +7,7 @@
 
 import dynamic from 'next/dynamic';
 import { useCallback, useState } from 'react';
-import type { CameraPose, ViewerQuality } from '@splathub/shared/types';
+import type { CameraPose, ViewerQuality } from '@/lib/shared/types';
 
 // SSR 시 Three.js/WebGL 초기화가 깨지므로 클라이언트 렌더링 전용.
 const GaussianSplatViewer = dynamic(() => import('./GaussianSplatViewer'), {

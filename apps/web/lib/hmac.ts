@@ -21,7 +21,7 @@ async function getKey(secret: string): Promise<CryptoKey> {
 export async function sign(body: string | Uint8Array, secret: string): Promise<string> {
   const key = await getKey(secret);
   const data = typeof body === 'string' ? encoder.encode(body) : body;
-  const sig = await crypto.subtle.sign('HMAC', key, data);
+  const sig = await crypto.subtle.sign('HMAC', key, data.buffer as ArrayBuffer);
   return bytesToHex(new Uint8Array(sig));
 }
 

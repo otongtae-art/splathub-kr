@@ -9,8 +9,8 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { JOB_PROGRESS, TERMINAL_STATUSES } from '@splathub/shared';
-import type { JobStatus } from '@splathub/shared/types';
+import { JOB_PROGRESS, TERMINAL_STATUSES } from '@/lib/shared';
+import type { JobStatus } from '@/lib/shared/types';
 
 type JobSnapshot = {
   id: string;

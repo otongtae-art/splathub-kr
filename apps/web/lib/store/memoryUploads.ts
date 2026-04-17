@@ -7,7 +7,7 @@
  */
 
 import { randomUUID } from 'crypto';
-import type { Upload } from '@splathub/shared/types';
+import type { Upload } from '@/lib/shared/types';
 
 const store = new Map<string, Upload>();
 

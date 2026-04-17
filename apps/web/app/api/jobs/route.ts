@@ -11,7 +11,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { CreateJobSchema } from '@splathub/shared';
+import { CreateJobSchema } from '@/lib/shared';
 import { publicUrlFor } from '@/lib/r2';
 import { createJob, updateJob } from '@/lib/store/memoryJobs';
 import { getUploads } from '@/lib/store/memoryUploads';

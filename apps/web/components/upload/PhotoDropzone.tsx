@@ -14,7 +14,7 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { useDropzone, type FileRejection } from 'react-dropzone';
-import { INPUT_LIMITS } from '@splathub/shared';
+import { INPUT_LIMITS } from '@/lib/shared';
 
 type UploadItem = {
   id: string; // local key

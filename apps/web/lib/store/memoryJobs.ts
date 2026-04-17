@@ -16,7 +16,7 @@ import type {
   JobStatus,
   UserTier,
   WorkerCallbackPayload,
-} from '@splathub/shared/types';
+} from '@/lib/shared/types';
 
 export type CreatedJob = Job;
 

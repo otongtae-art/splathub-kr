@@ -8,7 +8,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { PresignRequestSchema } from '@splathub/shared';
+import { PresignRequestSchema } from '@/lib/shared';
 import { presignPut, publicUrlFor } from '@/lib/r2';
 import { registerUpload } from '@/lib/store/memoryUploads';
 
