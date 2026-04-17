@@ -41,6 +41,7 @@ type ModelEntry = {
   id: string;
   title: string;
   spzUrl: string;
+  thumbnailUrl: string | null;
   createdAt: string;
 };
 
@@ -50,9 +51,11 @@ export default function DashboardPage() {
   const [currentModel, setCurrentModel] = useState<ModelEntry | null>(null);
   const [myModels, setMyModels] = useState<ModelEntry[]>([]);
   const [copied, setCopied] = useState(false);
+  const [sourceThumbnail, setSourceThumbnail] = useState<string | null>(null);
 
-  const handleJobCreated = useCallback((id: string) => {
+  const handleJobCreated = useCallback((id: string, thumbnailUrl: string) => {
     setJobId(id);
+    setSourceThumbnail(thumbnailUrl);
     setStep('processing');
   }, []);
 
@@ -61,12 +64,13 @@ export default function DashboardPage() {
       id: jobId || `model-${Date.now()}`,
       title: `모델 ${String(myModels.length + 1).padStart(2, '0')}`,
       spzUrl: '/samples/butterfly.spz',
+      thumbnailUrl: sourceThumbnail,
       createdAt: new Date().toLocaleString('ko-KR'),
     };
     setCurrentModel(model);
     setMyModels((prev) => [model, ...prev]);
     setStep('view');
-  }, [jobId, myModels.length]);
+  }, [jobId, myModels.length, sourceThumbnail]);
 
   const handleJobError = useCallback(() => {
     setStep('upload');
@@ -254,16 +258,28 @@ export default function DashboardPage() {
                       setCurrentModel(m);
                       setStep('view');
                     }}
-                    className={`tactile w-full px-0 py-3 text-left transition-colors ${
+                    className={`tactile flex w-full items-center gap-3 px-0 py-3 text-left transition-colors ${
                       currentModel?.id === m.id
                         ? 'text-accent-bright'
                         : 'text-base-700 hover:text-base-900'
                     }`}
                   >
-                    <p className="text-sm font-medium">{m.title}</p>
-                    <p className="mt-0.5 font-mono text-[11px] text-base-500">
-                      {m.createdAt}
-                    </p>
+                    {m.thumbnailUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={m.thumbnailUrl}
+                        alt=""
+                        className="h-9 w-9 flex-shrink-0 rounded-md object-cover"
+                      />
+                    ) : (
+                      <div className="h-9 w-9 flex-shrink-0 rounded-md bg-base-100" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{m.title}</p>
+                      <p className="mt-0.5 truncate font-mono text-[11px] text-base-500">
+                        {m.createdAt}
+                      </p>
+                    </div>
                   </button>
                 </li>
               ))}

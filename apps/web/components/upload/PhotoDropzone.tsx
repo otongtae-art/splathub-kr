@@ -2,25 +2,28 @@
 
 /**
  * PhotoDropzone — 드래그앤드롭 업로드 UI.
- * taste-skill 원칙 적용: 이모지 제거, accent glow 제거, tactile feedback.
+ *
+ * 현재는 서버 업로드 없이 클라이언트 mock 플로우로 직접 연결 (Vercel serverless
+ * 환경에서 파일시스템 쓰기 제한). 실제 GPU 엔진 연결 시 이 컴포넌트의
+ * submit() 안에서 fetch('/api/upload/file') + fetch('/api/jobs')로 교체.
  */
 
 import { useCallback, useMemo, useState } from 'react';
 import { useDropzone, type FileRejection } from 'react-dropzone';
 import { UploadSimple, X, Check, WarningCircle } from '@phosphor-icons/react/dist/ssr';
 import { INPUT_LIMITS } from '@/lib/shared';
+import { startMockJob } from '@/lib/mockFlow';
 
 type UploadItem = {
   id: string;
   file: File;
   previewUrl: string;
   status: 'queued' | 'uploading' | 'done' | 'error';
-  upload_id?: string;
-  public_url?: string;
 };
 
 type Props = {
-  onJobCreated: (jobId: string) => void;
+  /** jobId와 썸네일 URL을 부모에게 전달 */
+  onJobCreated: (jobId: string, thumbnailUrl: string) => void;
 };
 
 export default function PhotoDropzone({ onJobCreated }: Props) {
@@ -80,47 +83,15 @@ export default function PhotoDropzone({ onJobCreated }: Props) {
     setGlobalError(null);
 
     try {
+      // 업로드 "진행" 애니메이션만 잠깐 — 실제 서버 업로드 없음
       setItems((prev) => prev.map((p) => ({ ...p, status: 'uploading' as const })));
+      await new Promise((r) => setTimeout(r, 450));
+      setItems((prev) => prev.map((p) => ({ ...p, status: 'done' as const })));
 
-      const formData = new FormData();
-      items.forEach((item) => formData.append('files', item.file));
-
-      const uploadRes = await fetch('/api/upload/file', {
-        method: 'POST',
-        body: formData,
-      });
-      if (!uploadRes.ok) throw new Error(`upload_failed_${uploadRes.status}`);
-
-      const { uploads } = (await uploadRes.json()) as {
-        uploads: Array<{ upload_id: string; public_url: string; filename: string }>;
-      };
-
-      setItems((prev) =>
-        prev.map((p, idx) => ({
-          ...p,
-          status: 'done' as const,
-          upload_id: uploads[idx]?.upload_id,
-          public_url: uploads[idx]?.public_url,
-        })),
-      );
-
-      const upload_ids = uploads.map((u) => u.upload_id);
-      const jobRes = await fetch('/api/jobs', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          upload_ids,
-          kind: 'photo_to_splat',
-          source: 'upload',
-          quality: 'fast',
-        }),
-      });
-
-      if (!jobRes.ok) {
-        throw new Error(`job_create_failed_${jobRes.status}`);
-      }
-      const { job_id } = (await jobRes.json()) as { job_id: string };
-      onJobCreated(job_id);
+      // 첫 사진을 썸네일로 사용
+      const thumbnailUrl = items[0]?.previewUrl ?? '';
+      const jobId = startMockJob({ thumbnailUrl });
+      onJobCreated(jobId, thumbnailUrl);
     } catch (err) {
       setGlobalError((err as Error).message);
       setItems((prev) =>
@@ -142,11 +113,7 @@ export default function PhotoDropzone({ onJobCreated }: Props) {
         }`}
       >
         <input {...getInputProps()} />
-        <UploadSimple
-          size={24}
-          weight="regular"
-          className="text-base-500"
-        />
+        <UploadSimple size={24} weight="regular" className="text-base-500" />
         <div className="flex flex-col gap-0.5">
           <p className="text-sm font-medium text-base-800">
             사진을 끌어다 놓거나 클릭해서 선택

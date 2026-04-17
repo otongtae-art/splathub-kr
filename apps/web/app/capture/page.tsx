@@ -11,6 +11,7 @@ import {
   ArrowsCounterClockwise,
 } from '@phosphor-icons/react/dist/ssr';
 import JobProgress from '@/components/upload/JobProgress';
+import { startMockJob } from '@/lib/mockFlow';
 
 const ViewerShell = dynamic(() => import('@/components/viewer/ViewerShell'), {
   ssr: false,
@@ -102,44 +103,13 @@ export default function CapturePage() {
     });
   }, []);
 
-  const submitFrames = useCallback(async () => {
+  const submitFrames = useCallback(() => {
     if (frames.length === 0) return;
     stopCamera();
+    const thumbnailUrl = frames[0]?.previewUrl ?? '';
+    const id = startMockJob({ thumbnailUrl });
+    setJobId(id);
     setStep('processing');
-
-    try {
-      const formData = new FormData();
-      frames.forEach((f, i) => {
-        formData.append('files', f.blob, `capture_${i}.jpg`);
-      });
-
-      const uploadRes = await fetch('/api/upload/file', {
-        method: 'POST',
-        body: formData,
-      });
-      if (!uploadRes.ok) throw new Error('upload_failed');
-
-      const { uploads } = (await uploadRes.json()) as {
-        uploads: Array<{ upload_id: string }>;
-      };
-
-      const jobRes = await fetch('/api/jobs', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          upload_ids: uploads.map((u) => u.upload_id),
-          kind: 'photo_to_splat',
-          source: 'capture',
-        }),
-      });
-      if (!jobRes.ok) throw new Error('job_failed');
-
-      const { job_id } = (await jobRes.json()) as { job_id: string };
-      setJobId(job_id);
-    } catch (err) {
-      setCameraError((err as Error).message);
-      setStep('capture');
-    }
   }, [frames, stopCamera]);
 
   useEffect(() => {

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { ArrowLeft, Camera } from '@phosphor-icons/react/dist/ssr';
 import PhotoDropzone from '@/components/upload/PhotoDropzone';
 import JobProgress from '@/components/upload/JobProgress';
+// PhotoDropzone의 새로운 onJobCreated 시그니처(jobId, thumbnailUrl)와 호환
 
 const ViewerShell = dynamic(() => import('@/components/viewer/ViewerShell'), {
   ssr: false,
@@ -52,6 +53,7 @@ export default function ConvertPage() {
               setFailed(false);
             }}
           />
+          {/* onJobCreated 2번째 인자(thumbnailUrl)는 여기선 미사용 */}
         </section>
       )}
 

@@ -2,28 +2,20 @@
 
 /**
  * JobProgress — 변환 작업 진행률 표시.
- * 폴링 기반 (M4에서 Supabase Realtime으로 교체).
- * taste-skill 원칙: 단일 accent, 스켈레톤 스타일, 이모지 없음.
+ *
+ * mockFlow의 클라이언트 사이드 이벤트를 구독한다. 실제 HF Space 워커 연결 시
+ * 이 파일의 useEffect 내부만 `/api/jobs/:id` 폴링으로 교체하면 됨.
  */
 
 import { useEffect, useRef, useState } from 'react';
 import { JOB_PROGRESS, TERMINAL_STATUSES } from '@/lib/shared';
 import type { JobStatus } from '@/lib/shared/types';
-
-type JobSnapshot = {
-  id: string;
-  status: JobStatus;
-  progress: number;
-  worker_backend: string | null;
-  result_model_id: string | null;
-  error_code: string | null;
-  error_message: string | null;
-};
+import { subscribeMockJob, type MockJobSnapshot } from '@/lib/mockFlow';
 
 type Props = {
   jobId: string;
-  onDone?: (snapshot: JobSnapshot) => void;
-  onError?: (snapshot: JobSnapshot) => void;
+  onDone?: (snapshot: MockJobSnapshot) => void;
+  onError?: (snapshot: MockJobSnapshot) => void;
 };
 
 const STATUS_LABELS: Record<JobStatus, string> = {
@@ -39,39 +31,20 @@ const STATUS_LABELS: Record<JobStatus, string> = {
 };
 
 export default function JobProgress({ jobId, onDone, onError }: Props) {
-  const [snap, setSnap] = useState<JobSnapshot | null>(null);
+  const [snap, setSnap] = useState<MockJobSnapshot | null>(null);
   const doneFiredRef = useRef(false);
 
   useEffect(() => {
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-
-    async function tick() {
-      try {
-        const res = await fetch(`/api/jobs/${jobId}`, { cache: 'no-store' });
-        if (!res.ok) throw new Error(`status_${res.status}`);
-        const next = (await res.json()) as JobSnapshot;
-        if (cancelled) return;
-        setSnap(next);
-        if (TERMINAL_STATUSES.includes(next.status)) {
-          if (!doneFiredRef.current) {
-            doneFiredRef.current = true;
-            if (next.status === 'done') onDone?.(next);
-            else onError?.(next);
-          }
-          return;
-        }
-      } catch {
-        // retry on next tick
+    doneFiredRef.current = false;
+    const unsubscribe = subscribeMockJob(jobId, (next) => {
+      setSnap(next);
+      if (TERMINAL_STATUSES.includes(next.status) && !doneFiredRef.current) {
+        doneFiredRef.current = true;
+        if (next.status === 'done') onDone?.(next);
+        else onError?.(next);
       }
-      timer = setTimeout(tick, 1500);
-    }
-
-    tick();
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
+    });
+    return unsubscribe;
   }, [jobId, onDone, onError]);
 
   if (!snap) {
