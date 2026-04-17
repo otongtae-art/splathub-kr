@@ -1,23 +1,22 @@
 gradio==5.5.0
-Pillow>=10.3
-numpy>=1.26,<2.0
-
-# AI 스택 — HF Spaces ZeroGPU 이미지에 torch 2.3 + CUDA 12.1 기본 포함
-transformers>=4.44
-torch>=2.3
-torchvision>=0.18
-trimesh>=4.4
-einops
-
-# TripoSR 공식 (MIT)
-# 실제 HF Space에서는 git clone으로 설치됨 (아래 packages.txt 참고)
-# - huggingface_hub를 통해 checkpoint 다운로드
-
-# HF Spaces ZeroGPU decorator
 spaces>=0.28
 
-# 배경 제거
-scikit-image
+# TripoSR 공식 의존성
+omegaconf==2.3.0
+Pillow>=10.1.0
+einops==0.7.0
+transformers==4.35.0
+trimesh==4.0.5
+rembg
+huggingface-hub>=0.26
+imageio[ffmpeg]
+xatlas==0.0.9
+moderngl==5.10.0
 
-# 옵션: 안정적인 HF 모델 접근
-huggingface_hub>=0.26
+# torchmcubes — isosurface 추출용 (TripoSR 필수)
+# HF Spaces 이미지에 torch + CUDA 포함돼 있어 wheel build 가능
+git+https://github.com/tatsy/torchmcubes.git
+
+# torch/torchvision 은 HF Spaces ZeroGPU 이미지에 기본 포함
+
+numpy<2.0
