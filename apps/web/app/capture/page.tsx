@@ -46,10 +46,9 @@ export default function CapturePage() {
         },
       });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-      }
+      // setCameraActive를 호출하면 React가 video 요소를 DOM에 렌더링한다.
+      // 렌더링 직후에 useEffect가 실행되며 그때 videoRef.current에 stream을 붙인다.
+      // 이렇게 해야 "버튼 누른 직후 videoRef가 아직 null" 경쟁 조건이 사라진다.
       setCameraActive(true);
     } catch (err) {
       const msg = (err as Error).message;
@@ -63,9 +62,25 @@ export default function CapturePage() {
     }
   }, []);
 
+  // cameraActive가 true가 되어 video 요소가 렌더링된 "다음" 프레임에 stream을 붙인다.
+  useEffect(() => {
+    if (!cameraActive) return;
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (!video || !stream) return;
+    video.srcObject = stream;
+    // play()는 Promise를 반환 — 모바일 autoplay 정책으로 실패하면 조용히 무시
+    void video.play().catch((err) => {
+      console.warn('[capture] video.play() deferred', err);
+    });
+  }, [cameraActive]);
+
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
     setCameraActive(false);
   }, []);
 
