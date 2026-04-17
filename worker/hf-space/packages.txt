@@ -1,0 +1,4 @@
+ffmpeg
+git
+nodejs
+npm

@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html,
+  body {
+    @apply bg-ink-900 text-ink-50;
+    min-height: 100dvh;
+  }
+
+  body {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* 3D 뷰어·캡처 루트 컨테이너가 화면을 꽉 채우도록 */
+  body {
+    margin: 0;
+  }
+
+  /* WebGL canvas는 기본 인라인 → display:block으로 여백 제거 */
+  canvas {
+    display: block;
+  }
+}
+
+@layer utilities {
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}

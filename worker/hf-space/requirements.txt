@@ -1,0 +1,33 @@
+# HF Space ZeroGPU base includes torch + cuda stack.
+# Keep this file minimal — heavy model weights are fetched at runtime.
+
+gradio==5.5.0
+fastapi>=0.110,<1.0
+uvicorn>=0.30,<1.0
+pydantic>=2.7,<3.0
+python-multipart>=0.0.9
+httpx>=0.27
+
+# Image I/O and preprocessing
+Pillow>=10.3
+numpy>=1.26,<2.0
+opencv-python-headless>=4.10
+
+# Background removal — MIT license only
+rembg>=2.0
+
+# 3D / Gaussian Splatting runtime deps.
+# VGGT and FreeSplatter are installed by custom scripts (see pipeline/).
+torch>=2.3
+torchvision>=0.18
+trimesh>=4.4
+plyfile>=1.0
+
+# HMAC signing of callback
+cryptography>=42
+
+# For subprocess call to node CLI (@playcanvas/splat-transform)
+# Node 20 is provided by the Space image via packages.txt.
+
+# HF Spaces ZeroGPU decorator
+spaces>=0.28
