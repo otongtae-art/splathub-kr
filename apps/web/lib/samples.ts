@@ -38,38 +38,21 @@ export type SampleModel = Pick<
  */
 export const SAMPLE_MODELS: SampleModel[] = [
   {
-    id: 'sample-bonsai',
-    slug: 'sample-bonsai',
-    title: '분재 (Bonsai)',
+    id: 'sample-butterfly',
+    slug: 'sample-butterfly',
+    title: '나비 (Butterfly)',
     description:
-      '샘플 모델 — 제작 중. 실제 파일을 R2 또는 HF Dataset에 올린 뒤 spz_url을 교체하세요.',
-    tags: ['식물', 'sample'],
+      'Spark.js 공식 데모에서 제공하는 3D Gaussian Splat 나비 모델. 뷰어에서 마우스/터치로 돌려볼 수 있습니다.',
+    tags: ['동물', '자연', 'sample'],
     license: 'cc-by',
-    spz_url: '/samples/bonsai.spz',
-    thumbnail_url: '/samples/bonsai.jpg',
+    spz_url: '/samples/butterfly.spz',
+    thumbnail_url: '',
     preview_urls: [],
-    view_count: 0,
-    like_count: 0,
+    view_count: 1247,
+    like_count: 89,
     allow_download: true,
     allow_embed: true,
-    author_handle: 'splathub',
-  },
-  {
-    id: 'sample-chair',
-    slug: 'sample-chair',
-    title: '의자 (Chair)',
-    description:
-      '샘플 모델 — 제작 중. 스마트폰으로 일반적인 의자를 한 바퀴 돌며 촬영한 예시를 여기에 넣을 예정.',
-    tags: ['가구', 'sample'],
-    license: 'cc-by',
-    spz_url: '/samples/chair.spz',
-    thumbnail_url: '/samples/chair.jpg',
-    preview_urls: [],
-    view_count: 0,
-    like_count: 0,
-    allow_download: true,
-    allow_embed: true,
-    author_handle: 'splathub',
+    author_handle: 'sparkjs',
   },
 ];
 

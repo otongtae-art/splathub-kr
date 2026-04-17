@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@sparkjsdev/spark": "^2.0.0",
+    "@supabase/ssr": "^0.10.2",
+    "@supabase/supabase-js": "^2.103.3",
     "clsx": "^2.1.1",
     "next": "^15.0.3",
     "react": "^19.0.0",

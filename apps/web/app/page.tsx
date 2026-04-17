@@ -93,11 +93,20 @@ export default function DashboardPage() {
           </span>
         </div>
         <div className="flex items-center gap-2 text-xs">
-          <Link href="/convert" className="rounded-md px-3 py-1.5 text-ink-300 hover:text-ink-50">
-            파일 업로드
+          <Link href="/explore" className="rounded-md px-3 py-1.5 text-ink-300 hover:text-ink-50">
+            탐색
+          </Link>
+          <Link href="/marketplace" className="rounded-md px-3 py-1.5 text-ink-300 hover:text-ink-50">
+            마켓
           </Link>
           <Link href="/capture" className="rounded-md px-3 py-1.5 text-ink-300 hover:text-ink-50">
-            카메라 캡처
+            📷 캡처
+          </Link>
+          <Link
+            href="/login"
+            className="rounded-md bg-accent-500/10 border border-accent-500/30 px-3 py-1.5 text-accent-400 font-semibold hover:bg-accent-500/20"
+          >
+            로그인
           </Link>
         </div>
       </nav>
