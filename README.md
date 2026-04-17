@@ -2,9 +2,23 @@
 
 > 웹캠·카메라 한 번으로 3D Gaussian Splat 만들기
 
+**🚀 라이브 플랫폼**: [splathub.vercel.app](https://splathub.vercel.app)
+
 사진이나 웹캠으로 찍은 영상을 **브라우저에서 바로** 3D Gaussian Splat(`.ply` / `.spz` / `.sog`)으로 변환하고, 뷰어에서 즉시 확인·공유할 수 있는 한국어 무료 커뮤니티.
 
 레퍼런스: [superspl.at](https://superspl.at) / [playcanvas/supersplat](https://github.com/playcanvas/supersplat) (MIT)
+
+## 주요 라우트
+
+| URL | 기능 |
+|---|---|
+| [`/`](https://splathub.vercel.app) | 대시보드 — 사진 업로드 → 3D 변환 → 뷰어 |
+| [`/capture`](https://splathub.vercel.app/capture) | 웹캠/카메라 실시간 캡처 |
+| [`/convert`](https://splathub.vercel.app/convert) | 파일 업로드 변환 |
+| [`/explore`](https://splathub.vercel.app/explore) | 모델 탐색 갤러리 |
+| [`/marketplace`](https://splathub.vercel.app/marketplace) | 유료 마켓플레이스 (Phase 2) |
+| [`/login`](https://splathub.vercel.app/login) | 로그인 / 회원가입 |
+| [`/m/sample-butterfly`](https://splathub.vercel.app/m/sample-butterfly) | 샘플 3D 모델 뷰어 |
 
 ## 핵심 원칙
 
