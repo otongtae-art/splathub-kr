@@ -121,6 +121,34 @@ export default function GaussianSplatViewer({
           onLoad: () => {
             if (disposed) return;
             console.info('[viewer] splat loaded');
+            // 로드 완료 — 자동 카메라 fit: splat의 bounding box를 구해 카메라 거리 조정.
+            // 초기 카메라가 splat 범위와 맞지 않으면 검은 화면이 나오기 때문.
+            try {
+              const meshAny = mesh as unknown as {
+                getBoundingBox?: () => { min: THREE.Vector3; max: THREE.Vector3 };
+              };
+              if (meshAny?.getBoundingBox && !initialCamera && controls) {
+                const box = meshAny.getBoundingBox();
+                if (box && box.min && box.max) {
+                  const center = new THREE.Vector3()
+                    .addVectors(box.min, box.max)
+                    .multiplyScalar(0.5);
+                  const size = new THREE.Vector3().subVectors(box.max, box.min);
+                  const maxDim = Math.max(size.x, size.y, size.z);
+                  const fovRad = (camera.fov * Math.PI) / 180;
+                  // 여유 padding 1.3배
+                  const distance = (maxDim * 1.3) / (2 * Math.tan(fovRad / 2));
+                  camera.position.set(center.x, center.y, center.z + distance);
+                  controls.target.copy(center);
+                  controls.update();
+                  console.info(
+                    `[viewer] auto-fit camera — center=(${center.x.toFixed(2)}, ${center.y.toFixed(2)}, ${center.z.toFixed(2)}), size=${maxDim.toFixed(2)}, distance=${distance.toFixed(2)}`,
+                  );
+                }
+              }
+            } catch (fitErr) {
+              console.warn('[viewer] auto-fit failed (non-fatal)', fitErr);
+            }
             setStatus('ready');
             onLoad?.();
           },

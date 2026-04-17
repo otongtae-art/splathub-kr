@@ -46,12 +46,15 @@ type GenerationOptions = {
   onProgress?: (fraction: number) => void;
 };
 
+// baseScale은 log space 이므로 실제 Gaussian 반경 = exp(baseScale).
+// -4.2 → 0.015 (너무 작아서 카메라 3m 거리에서 픽셀 1개 미만 → 검은 화면)
+// -2.5 → 0.082 단위 (약 8cm) → stride 6 과 결합하면 자연스러운 커버리지
 const DEFAULTS: GenerationOptions = {
-  stride: 4,
+  stride: 6,
   radius: 1.6,
-  baseScale: -4.2,
+  baseScale: -2.5,
   depthRange: 0.35,
-  maxWidth: 480,
+  maxWidth: 512,
 };
 
 type PixelPoint = {
