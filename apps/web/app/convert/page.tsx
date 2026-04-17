@@ -93,7 +93,7 @@ export default function ConvertPage() {
             <ViewerShell
               url={resultSpzUrl ?? undefined}
               fileBytes={resultBytes ?? undefined}
-              fileType="ply"
+              fileType="splat"
               minimal
             />
           </div>

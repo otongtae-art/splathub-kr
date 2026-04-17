@@ -309,7 +309,7 @@ export default function CapturePage() {
               <ViewerShell
                 url={resultUrl ?? undefined}
                 fileBytes={resultBytes ?? undefined}
-                fileType="ply"
+                fileType="splat"
                 autoRotate
                 minimal
               />

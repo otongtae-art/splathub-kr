@@ -231,7 +231,7 @@ export default function DashboardPage() {
                 <ViewerShell
                   url={currentModel.spzUrl ?? undefined}
                   fileBytes={currentModel.plyBytes ?? undefined}
-                  fileType="ply"
+                  fileType="splat"
                   autoRotate
                   minimal
                 />
@@ -240,7 +240,7 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2 border-t border-base-100 pt-4">
                 <a
                   href={downloadHref(currentModel)}
-                  download={`${currentModel.title}.${currentModel.plyBytes ? 'ply' : 'spz'}`}
+                  download={`${currentModel.title}.${currentModel.plyBytes ? 'splat' : 'spz'}`}
                   className="tactile inline-flex items-center gap-1.5 rounded-md border border-base-200 bg-base-50 px-3 py-1.5 text-sm text-base-700 transition-colors hover:border-base-300 hover:text-base-900"
                 >
                   <DownloadSimple size={13} weight="regular" />
