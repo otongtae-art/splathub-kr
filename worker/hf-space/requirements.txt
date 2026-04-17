@@ -1,22 +1,20 @@
 gradio==5.5.0
 spaces>=0.28
 
-# TripoSR 공식 의존성
+# TripoSR 공식 의존성 — 하지만 transformers/tokenizers 버전은 고정 풀고 최신 사용
+# (TripoSR 가 고정한 transformers==4.35.0 은 tokenizers 0.14 를 요구하는데
+#  huggingface-hub 0.18 미만까지만 허용해서 HF Spaces 기본 이미지의 hub==1.11 과 충돌)
 omegaconf==2.3.0
 Pillow>=10.1.0
 einops==0.7.0
-transformers==4.35.0
-trimesh==4.0.5
+transformers>=4.44
+trimesh>=4.0.5
 rembg
-huggingface-hub>=0.26
 imageio[ffmpeg]
-xatlas==0.0.9
-moderngl==5.10.0
+xatlas>=0.0.9
+moderngl>=5.10.0
 
-# torchmcubes — isosurface 추출용 (TripoSR 필수)
-# HF Spaces 이미지에 torch + CUDA 포함돼 있어 wheel build 가능
+# torchmcubes — isosurface 추출. CUDA wheel build는 HF Spaces 이미지가 처리
 git+https://github.com/tatsy/torchmcubes.git
-
-# torch/torchvision 은 HF Spaces ZeroGPU 이미지에 기본 포함
 
 numpy<2.0
