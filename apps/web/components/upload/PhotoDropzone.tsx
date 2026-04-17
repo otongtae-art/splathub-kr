@@ -3,13 +3,8 @@
 /**
  * PhotoDropzone — drag&drop 업로드 UI.
  *
- * 사용자 흐름:
- *   1. 사진 드롭 → 로컬 썸네일 즉시 표시
- *   2. [변환 시작] 클릭 → presigned PUT 발급 → 각 파일 PUT 업로드
- *   3. 모든 업로드 완료 → /api/jobs POST → 부모에 job_id 전달
- *
- * 서버 대역폭을 아끼기 위해 업로드는 브라우저 ↔ R2 직접. 실패한 파일은
- * 즉시 UI에 표기해서 부분 실패 상황도 명확하게 보여준다.
+ * Dev 모드: /api/upload/file 로 직접 FormData POST (R2 불필요)
+ * Prod 모드: /api/upload/presign → R2 presigned PUT 직접 업로드
  */
 
 import { useCallback, useMemo, useState } from 'react';
@@ -17,11 +12,11 @@ import { useDropzone, type FileRejection } from 'react-dropzone';
 import { INPUT_LIMITS } from '@/lib/shared';
 
 type UploadItem = {
-  id: string; // local key
+  id: string;
   file: File;
   previewUrl: string;
   status: 'queued' | 'uploading' | 'done' | 'error';
-  upload_id?: string; // server-assigned
+  upload_id?: string;
   public_url?: string;
   error?: string;
 };
@@ -87,62 +82,40 @@ export default function PhotoDropzone({ onJobCreated }: Props) {
     setGlobalError(null);
 
     try {
-      // 1) presigned URL 발급
-      const presignRes = await fetch('/api/upload/presign', {
+      // Dev 모드: 로컬 서버에 직접 업로드 (R2 불필요)
+      setItems((prev) => prev.map((p) => ({ ...p, status: 'uploading' as const })));
+
+      const formData = new FormData();
+      items.forEach((item) => formData.append('files', item.file));
+
+      const uploadRes = await fetch('/api/upload/file', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          files: items.map((i) => ({
-            name: i.file.name,
-            size: i.file.size,
-            mime: i.file.type,
-          })),
-        }),
+        body: formData,
       });
-      if (!presignRes.ok) throw new Error(`presign_failed_${presignRes.status}`);
-      const { uploads } = (await presignRes.json()) as {
+
+      if (!uploadRes.ok) {
+        throw new Error(`upload_failed_${uploadRes.status}`);
+      }
+
+      const { uploads } = (await uploadRes.json()) as {
         uploads: Array<{
           upload_id: string;
-          url: string;
-          headers: Record<string, string>;
           public_url: string;
+          filename: string;
         }>;
       };
 
-      // 2) R2에 각 파일 직접 PUT
-      await Promise.all(
-        items.map(async (item, idx) => {
-          const target = uploads[idx];
-          if (!target) {
-            throw new Error('presign_response_missing_target');
-          }
-          setItems((prev) =>
-            prev.map((p) => (p.id === item.id ? { ...p, status: 'uploading' } : p)),
-          );
-          const putRes = await fetch(target.url, {
-            method: 'PUT',
-            headers: target.headers,
-            body: item.file,
-          });
-          if (!putRes.ok) {
-            throw new Error(`upload_put_failed_${putRes.status}`);
-          }
-          setItems((prev) =>
-            prev.map((p) =>
-              p.id === item.id
-                ? {
-                    ...p,
-                    status: 'done',
-                    upload_id: target.upload_id,
-                    public_url: target.public_url,
-                  }
-                : p,
-            ),
-          );
-        }),
+      // 상태 업데이트
+      setItems((prev) =>
+        prev.map((p, idx) => ({
+          ...p,
+          status: 'done' as const,
+          upload_id: uploads[idx]?.upload_id,
+          public_url: uploads[idx]?.public_url,
+        })),
       );
 
-      // 3) Job 생성
+      // Job 생성
       const upload_ids = uploads.map((u) => u.upload_id);
       const jobRes = await fetch('/api/jobs', {
         method: 'POST',
@@ -154,6 +127,7 @@ export default function PhotoDropzone({ onJobCreated }: Props) {
           quality: 'fast',
         }),
       });
+
       if (!jobRes.ok) {
         const bodyText = await jobRes.text();
         throw new Error(`job_create_failed_${jobRes.status}_${bodyText.slice(0, 200)}`);
@@ -202,18 +176,20 @@ export default function PhotoDropzone({ onJobCreated }: Props) {
                 alt={i.file.name}
                 className="h-full w-full object-cover"
               />
-              <button
-                type="button"
-                onClick={() => removeItem(i.id)}
-                className="absolute right-1 top-1 rounded-full bg-ink-900/80 px-2 py-0.5 text-xs text-ink-100"
-              >
-                ×
-              </button>
+              {!submitting && (
+                <button
+                  type="button"
+                  onClick={() => removeItem(i.id)}
+                  className="absolute right-1 top-1 rounded-full bg-ink-900/80 px-2 py-0.5 text-xs text-ink-100"
+                >
+                  ×
+                </button>
+              )}
               <div className="absolute inset-x-0 bottom-0 bg-ink-900/70 px-2 py-1 text-[10px] uppercase tracking-wide text-ink-200">
                 {i.status === 'queued' && '대기'}
                 {i.status === 'uploading' && '업로드…'}
-                {i.status === 'done' && '완료'}
-                {i.status === 'error' && '실패'}
+                {i.status === 'done' && '✓ 완료'}
+                {i.status === 'error' && '✗ 실패'}
               </div>
             </li>
           ))}
@@ -227,13 +203,22 @@ export default function PhotoDropzone({ onJobCreated }: Props) {
       )}
 
       <div className="flex items-center justify-end gap-3">
+        {items.length > 0 && !submitting && (
+          <button
+            type="button"
+            onClick={() => setItems([])}
+            className="text-xs text-ink-400 hover:text-ink-100"
+          >
+            전체 삭제
+          </button>
+        )}
         <button
           type="button"
           onClick={submit}
           disabled={items.length === 0 || submitting}
           className="rounded-lg bg-accent-500 px-5 py-2.5 text-sm font-semibold text-ink-900 transition hover:bg-accent-400 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {submitting ? '업로드 중…' : '3D로 변환하기'}
+          {submitting ? '업로드 중…' : `3D로 변환하기 (${items.length}장)`}
         </button>
       </div>
     </div>

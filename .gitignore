@@ -63,6 +63,9 @@ checkpoints/
 tmp/
 scratch/
 
+# Dev 모드 로컬 업로드 디렉토리
+.uploads/
+
 # Cloudflare
 .wrangler/
 wrangler.toml.bak
