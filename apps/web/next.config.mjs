@@ -1,6 +1,13 @@
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // workspace root를 apps/web으로 명시 → 다중 lockfile 경고 제거
+  outputFileTracingRoot: __dirname,
   // Spark.js는 Three.js side-effect + WebGL shader를 번들에 포함한다. Cloudflare Pages
   // Edge runtime은 WebGL/Canvas 접근 불가 → 뷰어 페이지는 반드시 클라이언트 렌더링.
   transpilePackages: ['@sparkjsdev/spark', 'three'],
