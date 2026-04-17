@@ -112,8 +112,16 @@ export default function GaussianSplatViewer({
 
     (async () => {
       try {
-        const { SplatMesh } = await import('@sparkjsdev/spark');
+        const { SplatMesh, SparkRenderer } = await import('@sparkjsdev/spark');
         if (disposed) return;
+
+        // CRITICAL: Spark v2.0은 SparkRenderer 오브젝트를 scene에 추가해야
+        // SplatMesh가 실제로 화면에 렌더링된다. Three.js 기본 WebGLRenderer만으로는
+        // Gaussian Splat을 그릴 수 없다 (Spark가 WebGL 파이프라인을 직접 제어).
+        // 공식 examples/hello-world/index.html 의 정확한 사용법.
+        const spark = new SparkRenderer({ renderer });
+        scene.add(spark as unknown as THREE.Object3D);
+        console.info('[viewer] SparkRenderer attached to scene');
 
         // Spark 2.0: SplatMesh 생성자 옵션 — url XOR fileBytes 선택.
         // onLoad/onError 콜백으로 실제 로드 성공/실패 포착.

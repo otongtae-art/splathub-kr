@@ -3,56 +3,40 @@
 /**
  * 클라이언트 사이드 3D Gaussian Splat 생성기.
  *
- * 완전한 AI 기반 multi-view reconstruction (VGGT + FreeSplatter) 은 GPU 서버가
- * 필요하지만, 비용 $0 제약 하에서도 "실제 사용자 사진이 3D로 변환되어 보이는"
- * 결과를 제공하기 위해 브라우저에서 직접 Gaussian Splat을 생성한다.
+ * antimatter15 표준 `.splat` 바이너리 포맷으로 출력:
+ *   - 32 bytes per splat
+ *   - position (3 × float32 LE) = 12
+ *   - scale    (3 × float32 LE, **linear** 실제 크기) = 12
+ *   - color    (4 × uint8, RGBA 0-255) = 4
+ *   - rotation (4 × uint8, quaternion 각 요소 = (v-128)/128) = 4
+ *
+ * .ply 포맷을 피한 이유: PLY는 3DGS 관용 표기(scale=log space, opacity=logit,
+ * color=SH DC half-Lambertian)가 다르고 뷰어마다 파서 구현이 제각각이라
+ * 어느 값이 맞는지 확인이 불가능. .splat은 모든 값이 직관적이고 Spark.js가
+ * 명시적으로 지원한다.
  *
  * 파이프라인:
- *   1. 입력 사진들을 부채꼴로 3D 공간에 배치 (각 사진 → 카메라 frustum)
- *   2. 각 사진의 픽셀 → 3D 포인트 (luminance 기반 간이 depth + radial 분포)
- *   3. 각 픽셀을 3D Gaussian으로 변환 (위치 + 색 + scale + opacity + quat)
- *   4. 표준 3DGS .ply binary 포맷으로 인코딩 → Blob URL
- *
- * 품질은 진짜 VGGT+FreeSplatter 대비 낮지만:
- *   - 사용자 사진이 실제로 3D 공간에 반영됨
- *   - 완전 무료, 서버 불필요
- *   - 뷰어에서 카메라를 돌리면 정말 3D 느낌을 준다
- *   - 사용자가 HF Space 직접 배포(docs/PRODUCTION.md) 하면 이 함수를 교체하면 됨
+ *   1. 입력 사진들을 부채꼴로 3D 공간에 배치
+ *   2. 각 사진의 픽셀 → 3D splat (position + linear scale + RGB + identity quat)
+ *   3. 32-byte-per-splat binary 로 인코딩 → Uint8Array
  */
 
-// 3DGS .ply 포맷 — SH degree 0 (DC only) 버전, 17 properties per vertex.
-// position(3) + normal(3) + SH DC(3) + opacity(1) + scale(3) + rot(4) = 17
-// SH rest(45)를 생략해 파일 크기·메모리·렌더 성능을 모두 개선. Spark.js는
-// SH degree 0 형식을 네이티브로 파싱한다.
-const PROPS_PER_GAUSSIAN = 17;
-const BYTES_PER_FLOAT = 4;
-const BYTES_PER_GAUSSIAN = PROPS_PER_GAUSSIAN * BYTES_PER_FLOAT;
-
-// 3DGS half-Lambertian SH DC 상수
-const SH_C0 = 0.28209479177387814;
+const BYTES_PER_SPLAT = 32;
 
 type GenerationOptions = {
-  /** 샘플링 간격 (픽셀). 낮을수록 더 촘촘 / 더 무거움 */
   stride: number;
-  /** 결과물의 전체 반지름 (월드 유닛) */
   radius: number;
-  /** 각 Gaussian의 기본 scale (log space) */
-  baseScale: number;
-  /** Depth 변화의 진폭 */
+  /** 각 splat의 실제 반경 (linear, 월드 유닛). 0.08 = 약 8cm */
+  splatSize: number;
   depthRange: number;
-  /** 입력 사진 리사이즈 상한 (가로) */
   maxWidth: number;
-  /** 진행률 콜백 */
   onProgress?: (fraction: number) => void;
 };
 
-// baseScale은 log space 이므로 실제 Gaussian 반경 = exp(baseScale).
-// -4.2 → 0.015 (너무 작아서 카메라 3m 거리에서 픽셀 1개 미만 → 검은 화면)
-// -2.5 → 0.082 단위 (약 8cm) → stride 6 과 결합하면 자연스러운 커버리지
 const DEFAULTS: GenerationOptions = {
   stride: 6,
   radius: 1.6,
-  baseScale: -2.5,
+  splatSize: 0.04,
   depthRange: 0.35,
   maxWidth: 512,
 };
@@ -67,9 +51,7 @@ type PixelPoint = {
 };
 
 /**
- * 파일 배열로부터 .ply Uint8Array 를 생성한다.
- * Blob URL 방식은 Spark.js에서 파일 포맷 자동 감지 실패 가능성이 있어
- * 바이트 배열을 직접 반환해 `SplatMesh({ fileBytes, fileType: 'ply' })` 로 넘긴다.
+ * 파일 배열로부터 `.splat` 바이트를 생성.
  */
 export async function generateSplatFromPhotos(
   files: File[],
@@ -82,48 +64,35 @@ export async function generateSplatFromPhotos(
   const n = images.length;
   const points: PixelPoint[] = [];
 
-  // 각 사진을 부채꼴로 배치 — N장이면 angle = i/N * 2π
-  // 한 장이면 정면, 두 장이면 좌/우 반씩, 등
   const angleStep = n > 1 ? (2 * Math.PI) / n : 0;
-  const fov = Math.min(angleStep * 1.1, Math.PI / 3); // 이웃 사진과 살짝 겹치게
+  const fov = Math.min(n > 1 ? angleStep * 1.1 : Math.PI / 2.5, Math.PI / 2);
 
   for (let i = 0; i < n; i++) {
     const img = images[i]!;
-    const angle = i * angleStep - Math.PI / 2; // 첫 사진이 +Z 방향
+    const angle = i * angleStep - Math.PI / 2;
     const pts = samplePhoto(img, angle, fov, opts);
     points.push(...pts);
-    opts.onProgress?.((i + 1) / n * 0.6);
-    // 메인 스레드 양보
+    opts.onProgress?.((i + 1) / n * 0.75);
     await new Promise((r) => setTimeout(r, 0));
   }
 
-  opts.onProgress?.(0.75);
+  opts.onProgress?.(0.85);
 
-  // Gaussian 버퍼 빌드 → .ply binary 인코딩
-  const plyBytes = encodePly(points, opts);
+  const bytes = encodeSplat(points, opts);
   opts.onProgress?.(1);
-  // 디버깅에 쓸 수 있도록 메타 정보를 콘솔에 명시적으로 남긴다
+
   console.info(
-    `[gen3d] generated ${points.length} gaussians, ${plyBytes.byteLength} bytes (.ply SH degree 0)`,
+    `[gen3d] generated ${points.length} splats, ${bytes.byteLength} bytes (.splat format)`,
   );
-  return plyBytes;
+  return bytes;
 }
 
-/**
- * 하나의 이미지를 부채꼴 내의 포인트들로 변환.
- *
- * 좌표계:
- *   - 중심(origin) 기준 카메라는 (angle 방향) 으로 바깥 바라봄
- *   - 픽셀 (u, v) 을 카메라 평면에 투영
- *   - depth 는 luminance 기반 간단 추정 + 원점 쪽으로 흡수
- */
 function samplePhoto(
   img: HTMLImageElement,
   angle: number,
   fov: number,
   opts: GenerationOptions,
 ): PixelPoint[] {
-  // 리사이즈된 크기로 Canvas 그리기
   const w = Math.min(img.naturalWidth, opts.maxWidth);
   const h = Math.round((img.naturalHeight * w) / img.naturalWidth);
 
@@ -138,12 +107,9 @@ function samplePhoto(
   // 카메라 방향 — 원점에서 바깥(angle 방향)을 바라봄
   const cx = Math.cos(angle);
   const cz = Math.sin(angle);
-  // 카메라 right / up 벡터
+  // right vector (카메라 기준 오른쪽)
   const rx = -Math.sin(angle);
   const rz = Math.cos(angle);
-  const ux = 0;
-  const uy = 1;
-  const uz = 0;
 
   const halfFov = fov / 2;
   const aspect = w / h;
@@ -160,28 +126,26 @@ function samplePhoto(
       const a = data[idx + 3]! / 255;
       if (a < 0.2) continue;
 
-      // 간단한 depth: luminance가 높을수록 카메라에 가까움 (대략적)
       const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
       const depthOffset = (luma - 0.5) * opts.depthRange;
+      const radius = opts.radius + depthOffset;
 
-      // 픽셀 → 카메라 평면 (-1..1 범위)
-      const u = (px / w) * 2 - 1; // -1 왼쪽, +1 오른쪽
-      const v = (py / h) * 2 - 1; // -1 위, +1 아래
-      // 수직 FoV는 aspect로 보정
+      // 픽셀 → 카메라 평면 (-1..1)
+      const u = (px / w) * 2 - 1;
+      const v = (py / h) * 2 - 1;
       const thU = u * halfFov;
       const thV = (v * halfFov) / aspect;
 
-      // 카메라 광축에서 얼마나 벗어났는지를 카메라 basis로 변환
-      const offsetRight = Math.tan(thU);
-      const offsetUp = -Math.tan(thV);
+      const offsetRight = Math.tan(thU) * radius;
+      const offsetUp = Math.tan(thV) * radius;
 
-      // 3D 위치: 원점에서 angle 방향으로 radius 만큼 전진 후 right/up offset
-      const radius = opts.radius + depthOffset;
-      const wx = cx * radius + rx * offsetRight * radius + ux * offsetUp * radius;
-      const wy = 0 + uy * offsetUp * radius;
-      const wz = cz * radius + rz * offsetRight * radius + uz * offsetUp * radius;
+      // 3D 월드 위치
+      const wx = cx * radius + rx * offsetRight;
+      // three.js / splat 관용: Y up, 이미지 v가 아래로 갈수록 커지므로 -offsetUp
+      const wy = -offsetUp;
+      const wz = cz * radius + rz * offsetRight;
 
-      points.push({ x: wx, y: -wy, z: wz, r, g, b });
+      points.push({ x: wx, y: wy, z: wz, r, g, b });
     }
   }
 
@@ -189,89 +153,48 @@ function samplePhoto(
 }
 
 /**
- * 3DGS 표준 .ply binary 인코딩 → 단일 Uint8Array.
+ * .splat binary 인코딩.
  */
-function encodePly(points: PixelPoint[], opts: GenerationOptions): Uint8Array {
+function encodeSplat(points: PixelPoint[], opts: GenerationOptions): Uint8Array {
   const count = points.length;
+  const buffer = new ArrayBuffer(count * BYTES_PER_SPLAT);
+  const view = new DataView(buffer);
 
-  // 헤더 — SH degree 0 (SH rest 0개)
-  const propertyLines = [
-    'property float x',
-    'property float y',
-    'property float z',
-    'property float nx',
-    'property float ny',
-    'property float nz',
-    'property float f_dc_0',
-    'property float f_dc_1',
-    'property float f_dc_2',
-    'property float opacity',
-    'property float scale_0',
-    'property float scale_1',
-    'property float scale_2',
-    'property float rot_0',
-    'property float rot_1',
-    'property float rot_2',
-    'property float rot_3',
-  ];
-
-  const header =
-    'ply\n' +
-    'format binary_little_endian 1.0\n' +
-    `element vertex ${count}\n` +
-    propertyLines.join('\n') +
-    '\nend_header\n';
-
-  const headerBytes = new TextEncoder().encode(header);
-  const bodyLength = count * BYTES_PER_GAUSSIAN;
-  const bodyBytes = new ArrayBuffer(bodyLength);
-  const view = new DataView(bodyBytes);
-
-  // 로짓(0.85) ≈ 1.7346 — 불투명도를 거의 꽉 채움
-  const opacityLogit = 1.7346;
+  const size = opts.splatSize;
 
   for (let i = 0; i < count; i++) {
     const p = points[i]!;
-    let offset = i * BYTES_PER_GAUSSIAN;
+    let offset = i * BYTES_PER_SPLAT;
 
     // position
     view.setFloat32(offset, p.x, true); offset += 4;
     view.setFloat32(offset, p.y, true); offset += 4;
     view.setFloat32(offset, p.z, true); offset += 4;
-    // normal (3DGS는 사용 안 함)
-    view.setFloat32(offset, 0, true); offset += 4;
-    view.setFloat32(offset, 0, true); offset += 4;
-    view.setFloat32(offset, 0, true); offset += 4;
-    // SH DC — half-Lambertian 색 인코딩
-    view.setFloat32(offset, (p.r - 0.5) / SH_C0, true); offset += 4;
-    view.setFloat32(offset, (p.g - 0.5) / SH_C0, true); offset += 4;
-    view.setFloat32(offset, (p.b - 0.5) / SH_C0, true); offset += 4;
-    // (SH rest 생략 — SH degree 0)
-    // opacity (logit)
-    view.setFloat32(offset, opacityLogit, true); offset += 4;
-    // scale (log space)
-    view.setFloat32(offset, opts.baseScale, true); offset += 4;
-    view.setFloat32(offset, opts.baseScale, true); offset += 4;
-    view.setFloat32(offset, opts.baseScale, true); offset += 4;
-    // rotation (identity quaternion w x y z)
-    view.setFloat32(offset, 1, true); offset += 4;
-    view.setFloat32(offset, 0, true); offset += 4;
-    view.setFloat32(offset, 0, true); offset += 4;
-    view.setFloat32(offset, 0, true); offset += 4;
+    // scale (linear, 실제 크기)
+    view.setFloat32(offset, size, true); offset += 4;
+    view.setFloat32(offset, size, true); offset += 4;
+    view.setFloat32(offset, size, true); offset += 4;
+    // color RGBA (uint8, 0-255)
+    view.setUint8(offset, Math.round(p.r * 255)); offset += 1;
+    view.setUint8(offset, Math.round(p.g * 255)); offset += 1;
+    view.setUint8(offset, Math.round(p.b * 255)); offset += 1;
+    view.setUint8(offset, 255); offset += 1; // alpha = fully opaque
+    // rotation — identity quaternion.
+    // .splat 규칙: 각 요소 = (byte - 128) / 128
+    // identity (w=1, x=y=z=0) → w=255, x=y=z=128
+    view.setUint8(offset, 255); offset += 1; // w
+    view.setUint8(offset, 128); offset += 1; // x
+    view.setUint8(offset, 128); offset += 1; // y
+    view.setUint8(offset, 128); offset += 1; // z
 
-    // Sanity check — 실제 쓴 바이트 수가 선언한 BYTES_PER_GAUSSIAN과 일치해야 함
-    if (offset - i * BYTES_PER_GAUSSIAN !== BYTES_PER_GAUSSIAN) {
+    if (offset - i * BYTES_PER_SPLAT !== BYTES_PER_SPLAT) {
       throw new Error(
-        `encodePly bug: wrote ${offset - i * BYTES_PER_GAUSSIAN} bytes but declared ${BYTES_PER_GAUSSIAN}`,
+        `encodeSplat bug: wrote ${offset - i * BYTES_PER_SPLAT} bytes vs expected ${BYTES_PER_SPLAT}`,
       );
     }
   }
 
-  // header + body 를 하나의 Uint8Array로 연결
-  const out = new Uint8Array(headerBytes.byteLength + bodyLength);
-  out.set(headerBytes, 0);
-  out.set(new Uint8Array(bodyBytes), headerBytes.byteLength);
-  return out;
+  return new Uint8Array(buffer);
 }
 
 function loadImage(file: File | Blob): Promise<HTMLImageElement> {
@@ -279,7 +202,6 @@ function loadImage(file: File | Blob): Promise<HTMLImageElement> {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
-      // revoke 후에도 이미지는 메모리에 남음 (이미 디코드됨)
       URL.revokeObjectURL(url);
       resolve(img);
     };
