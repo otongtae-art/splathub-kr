@@ -64,13 +64,14 @@ type PixelPoint = {
 };
 
 /**
- * 파일 배열로부터 .ply Blob을 생성한다.
- * 브라우저 메인 스레드를 너무 오래 잡지 않도록 중간에 requestAnimationFrame 양보.
+ * 파일 배열로부터 .ply Uint8Array 를 생성한다.
+ * Blob URL 방식은 Spark.js에서 파일 포맷 자동 감지 실패 가능성이 있어
+ * 바이트 배열을 직접 반환해 `SplatMesh({ fileBytes, fileType: 'ply' })` 로 넘긴다.
  */
 export async function generateSplatFromPhotos(
   files: File[],
   options: Partial<GenerationOptions> = {},
-): Promise<Blob> {
+): Promise<Uint8Array> {
   const opts: GenerationOptions = { ...DEFAULTS, ...options };
   if (files.length === 0) throw new Error('no input photos');
 
@@ -96,9 +97,13 @@ export async function generateSplatFromPhotos(
   opts.onProgress?.(0.75);
 
   // Gaussian 버퍼 빌드 → .ply binary 인코딩
-  const plyBlob = encodePly(points, opts);
+  const plyBytes = encodePly(points, opts);
   opts.onProgress?.(1);
-  return plyBlob;
+  // 디버깅에 쓸 수 있도록 메타 정보를 콘솔에 명시적으로 남긴다
+  console.info(
+    `[gen3d] generated ${points.length} gaussians, ${plyBytes.byteLength} bytes (.ply SH degree 0)`,
+  );
+  return plyBytes;
 }
 
 /**
@@ -181,9 +186,9 @@ function samplePhoto(
 }
 
 /**
- * 3DGS 표준 .ply binary 인코딩.
+ * 3DGS 표준 .ply binary 인코딩 → 단일 Uint8Array.
  */
-function encodePly(points: PixelPoint[], opts: GenerationOptions): Blob {
+function encodePly(points: PixelPoint[], opts: GenerationOptions): Uint8Array {
   const count = points.length;
 
   // 헤더 — SH degree 0 (SH rest 0개)
@@ -215,7 +220,8 @@ function encodePly(points: PixelPoint[], opts: GenerationOptions): Blob {
     '\nend_header\n';
 
   const headerBytes = new TextEncoder().encode(header);
-  const bodyBytes = new ArrayBuffer(count * BYTES_PER_GAUSSIAN);
+  const bodyLength = count * BYTES_PER_GAUSSIAN;
+  const bodyBytes = new ArrayBuffer(bodyLength);
   const view = new DataView(bodyBytes);
 
   // 로짓(0.85) ≈ 1.7346 — 불투명도를 거의 꽉 채움
@@ -258,7 +264,11 @@ function encodePly(points: PixelPoint[], opts: GenerationOptions): Blob {
     }
   }
 
-  return new Blob([headerBytes, bodyBytes], { type: 'application/octet-stream' });
+  // header + body 를 하나의 Uint8Array로 연결
+  const out = new Uint8Array(headerBytes.byteLength + bodyLength);
+  out.set(headerBytes, 0);
+  out.set(new Uint8Array(bodyBytes), headerBytes.byteLength);
+  return out;
 }
 
 function loadImage(file: File | Blob): Promise<HTMLImageElement> {

@@ -40,7 +40,10 @@ const ViewerShell = dynamic(() => import('@/components/viewer/ViewerShell'), {
 type ModelEntry = {
   id: string;
   title: string;
-  spzUrl: string;
+  /** 샘플 등 URL 기반 결과 */
+  spzUrl: string | null;
+  /** 클라이언트 생성 결과 — 직접 뷰어에 넘김 */
+  plyBytes: Uint8Array | null;
   thumbnailUrl: string | null;
   createdAt: string;
 };
@@ -60,12 +63,13 @@ export default function DashboardPage() {
   }, []);
 
   const handleJobDone = useCallback(
-    (snap: { result_ply_url: string | null }) => {
+    (snap: { result_ply_url: string | null; result_ply_bytes: Uint8Array | null }) => {
       const model: ModelEntry = {
         id: jobId || `model-${Date.now()}`,
         title: `모델 ${String(myModels.length + 1).padStart(2, '0')}`,
-        // gen3d가 생성한 실제 .ply Blob URL 우선, 실패 시 샘플로 폴백
-        spzUrl: snap.result_ply_url || '/samples/butterfly.spz',
+        // gen3d가 생성한 실제 .ply 바이트 우선. 없으면 샘플 URL로 폴백.
+        spzUrl: snap.result_ply_bytes ? null : snap.result_ply_url || '/samples/butterfly.spz',
+        plyBytes: snap.result_ply_bytes,
         thumbnailUrl: sourceThumbnail,
         createdAt: new Date().toLocaleString('ko-KR'),
       };
@@ -224,13 +228,19 @@ export default function DashboardPage() {
               </header>
 
               <div className="aspect-[4/3] w-full overflow-hidden rounded-lg border border-base-100 bg-base-0 sm:aspect-[16/10]">
-                <ViewerShell url={currentModel.spzUrl} autoRotate minimal />
+                <ViewerShell
+                  url={currentModel.spzUrl ?? undefined}
+                  fileBytes={currentModel.plyBytes ?? undefined}
+                  fileType="ply"
+                  autoRotate
+                  minimal
+                />
               </div>
 
               <div className="flex items-center gap-2 border-t border-base-100 pt-4">
                 <a
-                  href={currentModel.spzUrl}
-                  download={`${currentModel.title}.spz`}
+                  href={downloadHref(currentModel)}
+                  download={`${currentModel.title}.${currentModel.plyBytes ? 'ply' : 'spz'}`}
                   className="tactile inline-flex items-center gap-1.5 rounded-md border border-base-200 bg-base-50 px-3 py-1.5 text-sm text-base-700 transition-colors hover:border-base-300 hover:text-base-900"
                 >
                   <DownloadSimple size={13} weight="regular" />
@@ -355,4 +365,23 @@ function StatRow({ label, value }: { label: string; value: string }) {
       <dd className="font-mono text-xs text-base-800">{value}</dd>
     </div>
   );
+}
+
+/**
+ * ModelEntry의 다운로드 URL을 생성.
+ * plyBytes가 있으면 즉석에서 Blob URL로 감싸고, 없으면 원격 URL 반환.
+ */
+function downloadHref(model: ModelEntry): string {
+  if (model.plyBytes) {
+    // eslint-disable-next-line no-underscore-dangle
+    const w = window as unknown as { __splathub_blob_cache?: Map<string, string> };
+    if (!w.__splathub_blob_cache) w.__splathub_blob_cache = new Map();
+    const cached = w.__splathub_blob_cache.get(model.id);
+    if (cached) return cached;
+    const blob = new Blob([model.plyBytes as BlobPart], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    w.__splathub_blob_cache.set(model.id, url);
+    return url;
+  }
+  return model.spzUrl ?? '#';
 }

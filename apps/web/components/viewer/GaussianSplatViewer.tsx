@@ -1,47 +1,45 @@
 'use client';
 
 /**
- * GaussianSplatViewer — Spark.js + Three.js 기반 .spz / .ply / .sog / .splat 뷰어.
+ * GaussianSplatViewer — Spark.js 2.0 기반 .ply/.spz/.splat/.sog 뷰어.
  *
- * 모든 모델 페이지(/m/[slug], /embed/[id])와 변환 결과 미리보기(/convert, /capture)가
- * 이 컴포넌트 하나에 의존한다. 따라서 API 안정성이 중요 — props를 조심스럽게 설계하고
- * 에러는 onError로 위임해 상위가 재시도 UI를 그리게 한다.
+ * 두 가지 입력 경로:
+ *   - `url`: 원격 URL 또는 /public 파일 (샘플 모델용)
+ *   - `fileBytes`: 클라이언트에서 생성한 Uint8Array (gen3d 결과). URL을 거치지
+ *     않고 Spark의 `fileBytes`에 직접 넘겨 blob: URL의 포맷 감지 실패 이슈를 회피.
  *
- * 참고: Spark.js (sparkjsdev/spark) 는 Three.js scene graph 위에서 동작하는 splat mesh
- * 를 제공한다. 실제 import 경로와 생성자 시그니처는 공식 버전에 따라 조정 필요.
+ * Spark v2.0 SplatMesh 지원 옵션 (공식 docs 기준):
+ *   - url, fileBytes, stream, packedSplats
+ *   - fileType (확장자 없을 때 힌트: 'ply' | 'spz' | 'splat' | 'sog')
+ *   - onLoad, onProgress — 로드 완료/진행 콜백
  */
 
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { CameraPose, ViewerQuality } from '@/lib/shared/types';
-import {
-  detectDeviceProfile,
-  devicePixelRatioCap,
-  maxGaussiansForProfile,
-} from '@/lib/device';
+import { detectDeviceProfile, devicePixelRatioCap } from '@/lib/device';
 
 type Props = {
-  /** .spz / .ply / .sog / .splat 중 어떤 것이든 원격 URL */
-  url: string;
-  /** 자동 회전 (랜딩·미리보기용) */
+  /** 원격 .ply/.spz URL (샘플 모델 또는 R2 호스팅 파일) */
+  url?: string;
+  /** 클라이언트 생성 .ply 바이트 — gen3d 결과를 직접 전달 */
+  fileBytes?: Uint8Array;
+  /** fileBytes의 확장자 힌트. 기본 'ply' */
+  fileType?: 'ply' | 'spz' | 'splat' | 'sog';
   autoRotate?: boolean;
-  /** 첫 렌더 시 카메라 위치. 없으면 (0, 0, 3) */
   initialCamera?: CameraPose;
-  /** 명시적 품질 선택. 기본 'auto'는 디바이스 프로파일에 위임 */
   quality?: ViewerQuality;
-  /** 배경색 (Three.js scene.background) */
   background?: string | null;
-  /** 로드 성공 */
   onLoad?: () => void;
-  /** 로드 실패 — 상위가 fallback UI를 그리는 데 사용 */
   onError?: (err: Error) => void;
-  /** 추가 className */
   className?: string;
 };
 
 export default function GaussianSplatViewer({
   url,
+  fileBytes,
+  fileType = 'ply',
   autoRotate = false,
   initialCamera,
   quality = 'auto',
@@ -57,17 +55,22 @@ export default function GaussianSplatViewer({
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+    if (!url && !fileBytes) {
+      setStatus('error');
+      setErrorMessage('모델 소스가 지정되지 않았습니다 (url/fileBytes 필요)');
+      return;
+    }
 
     let disposed = false;
     let renderer: THREE.WebGLRenderer | null = null;
     let controls: OrbitControls | null = null;
     let mesh: THREE.Object3D | null = null;
     let onResize: (() => void) | null = null;
+
     const scene = new THREE.Scene();
     if (background) scene.background = new THREE.Color(background);
 
     const profile = quality === 'auto' ? detectDeviceProfile() : quality === 'high' ? 'high' : 'low';
-    const maxGaussians = maxGaussiansForProfile(profile);
 
     const width = container.clientWidth || 800;
     const height = container.clientHeight || 600;
@@ -98,6 +101,7 @@ export default function GaussianSplatViewer({
       controls.update();
     } catch (err) {
       const e = err instanceof Error ? err : new Error(String(err));
+      console.error('[viewer] WebGL init failed', e);
       setStatus('error');
       setErrorMessage('WebGL을 지원하지 않는 브라우저입니다.');
       onError?.(e);
@@ -106,39 +110,58 @@ export default function GaussianSplatViewer({
 
     setStatus('loading');
 
-    // Spark.js는 dynamic import — SSR/Edge 번들에서 제외.
-    // @sparkjsdev/spark@2.0 의 SplatMesh 는 Three.js Object3D 를 상속하며 내부적으로
-    // URL을 fetch → GPU 업로드를 수행한다. 공식 README 기준 `new SplatMesh({ url })` 가
-    // 최소 생성자. 로드 완료 이벤트가 표준화되지 않아 `scene.add` 후 한 프레임이 그려지면
-    // 렌더가 되기 시작하는 식 — UX 상 "로딩 중" 오버레이는 첫 프레임 직전 사라지도록
-    // requestAnimationFrame 한 번만 기다린다. 실제 로드 실패는 상위 fetch가 던지는
-    // 예외로 잡히므로 try/catch 유지.
     (async () => {
       try {
         const { SplatMesh } = await import('@sparkjsdev/spark');
         if (disposed) return;
 
-        mesh = new SplatMesh({ url });
+        // Spark 2.0: SplatMesh 생성자 옵션 — url XOR fileBytes 선택.
+        // onLoad/onError 콜백으로 실제 로드 성공/실패 포착.
+        const meshOptions: Record<string, unknown> = {
+          onLoad: () => {
+            if (disposed) return;
+            console.info('[viewer] splat loaded');
+            setStatus('ready');
+            onLoad?.();
+          },
+          onError: (err: unknown) => {
+            if (disposed) return;
+            const e = err instanceof Error ? err : new Error(String(err));
+            console.error('[viewer] splat load error', e);
+            setStatus('error');
+            setErrorMessage(e.message || '모델을 불러오지 못했습니다.');
+            onError?.(e);
+          },
+        };
 
-        // 저사양 보호: Spark는 기본적으로 파일에 포함된 전체 가우시안을 로드하지만,
-        // Object3D.userData 에 maxGaussians 힌트를 넣어 상위 레이어가 읽을 수 있게 한다.
-        // 향후 Spark가 LOD API를 공개하면 직접 전달로 교체.
-        (mesh as unknown as { userData: Record<string, unknown> }).userData.maxGaussians =
-          maxGaussians;
+        if (fileBytes) {
+          meshOptions.fileBytes = fileBytes;
+          meshOptions.fileType = fileType;
+          console.info(
+            `[viewer] loading from fileBytes (${fileBytes.byteLength} bytes, type=${fileType})`,
+          );
+        } else if (url) {
+          meshOptions.url = url;
+          console.info(`[viewer] loading from url ${url}`);
+        }
+
+        mesh = new SplatMesh(meshOptions as ConstructorParameters<typeof SplatMesh>[0]);
 
         if (disposed) return;
         scene.add(mesh as unknown as THREE.Object3D);
 
-        // 첫 프레임 그려질 때 "ready"로 전환. 이는 실제 완전한 GPU 업로드 완료를
-        // 보장하진 않지만, 사용자에게 뷰어가 살아있다는 신호를 즉시 주기 위함.
-        requestAnimationFrame(() => {
-          if (disposed) return;
-          setStatus('ready');
-          onLoad?.();
-        });
+        // Spark가 onLoad를 호출하지 않는 구버전/엣지 케이스를 대비:
+        // 1.5초 안에 ready 상태가 안 되면 일단 ready로 전환 (사용자가 빈 화면을
+        // 무한 대기하지 않게). 실제 렌더에 문제가 있어도 OrbitControls는 작동.
+        setTimeout(() => {
+          if (!disposed) {
+            setStatus((prev) => (prev === 'loading' ? 'ready' : prev));
+          }
+        }, 1500);
       } catch (err) {
         if (disposed) return;
         const e = err instanceof Error ? err : new Error(String(err));
+        console.error('[viewer] Spark.js load/construct failed', e);
         setStatus('error');
         setErrorMessage(e.message || '모델을 불러오지 못했습니다.');
         onError?.(e);
@@ -179,7 +202,7 @@ export default function GaussianSplatViewer({
         }
       }
     };
-  }, [url, autoRotate, initialCamera, quality, background, onLoad, onError]);
+  }, [url, fileBytes, fileType, autoRotate, initialCamera, quality, background, onLoad, onError]);
 
   return (
     <div
@@ -188,14 +211,15 @@ export default function GaussianSplatViewer({
       data-status={status}
     >
       {status === 'loading' && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-ink-300">
-          모델 로딩 중…
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center gap-2 text-sm text-base-400">
+          <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
+          모델 확인중
         </div>
       )}
       {status === 'error' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-ink-900/80 px-6 text-center">
-          <p className="text-sm font-semibold text-ink-100">모델을 불러오지 못했습니다</p>
-          <p className="text-xs text-ink-400">{errorMessage}</p>
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-base-0/80 px-6 text-center">
+          <p className="text-sm font-semibold text-base-100">모델을 불러오지 못했습니다</p>
+          <p className="text-xs text-base-400">{errorMessage}</p>
         </div>
       )}
     </div>

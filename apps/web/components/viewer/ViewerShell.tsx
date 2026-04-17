@@ -2,7 +2,7 @@
 
 /**
  * ViewerShell — GaussianSplatViewer의 레이아웃 래퍼.
- * taste-skill: 단일 accent, 스켈레톤 로더, 이모지 없음.
+ * url과 fileBytes 둘 다 pass-through. 하나만 전달되면 그 소스로 렌더.
  */
 
 import dynamic from 'next/dynamic';
@@ -15,7 +15,9 @@ const GaussianSplatViewer = dynamic(() => import('./GaussianSplatViewer'), {
 });
 
 type Props = {
-  url: string;
+  url?: string;
+  fileBytes?: Uint8Array;
+  fileType?: 'ply' | 'spz' | 'splat' | 'sog';
   title?: string;
   subtitle?: string;
   autoRotate?: boolean;
@@ -26,6 +28,8 @@ type Props = {
 
 export default function ViewerShell({
   url,
+  fileBytes,
+  fileType,
   title,
   subtitle,
   autoRotate = false,
@@ -66,6 +70,8 @@ export default function ViewerShell({
         ) : (
           <GaussianSplatViewer
             url={url}
+            fileBytes={fileBytes}
+            fileType={fileType}
             autoRotate={autoRotate}
             initialCamera={initialCamera}
             quality={quality}

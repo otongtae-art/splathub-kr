@@ -15,6 +15,7 @@ const ViewerShell = dynamic(() => import('@/components/viewer/ViewerShell'), {
 export default function ConvertPage() {
   const [jobId, setJobId] = useState<string | null>(null);
   const [resultSpzUrl, setResultSpzUrl] = useState<string | null>(null);
+  const [resultBytes, setResultBytes] = useState<Uint8Array | null>(null);
   const [failed, setFailed] = useState(false);
 
   return (
@@ -57,13 +58,19 @@ export default function ConvertPage() {
         </section>
       )}
 
-      {jobId && !resultSpzUrl && !failed && (
+      {jobId && !resultSpzUrl && !resultBytes && !failed && (
         <section className="flex flex-col gap-3 animate-fade-in">
           <JobProgress
             jobId={jobId}
-            onDone={(snap) =>
-              setResultSpzUrl(snap.result_ply_url || '/samples/butterfly.spz')
-            }
+            onDone={(snap) => {
+              if (snap.result_ply_bytes) {
+                setResultBytes(snap.result_ply_bytes);
+                setResultSpzUrl(null);
+              } else {
+                setResultSpzUrl(snap.result_ply_url || '/samples/butterfly.spz');
+                setResultBytes(null);
+              }
+            }}
             onError={() => setFailed(true)}
           />
           <button
@@ -79,17 +86,23 @@ export default function ConvertPage() {
         </section>
       )}
 
-      {resultSpzUrl && (
+      {(resultSpzUrl || resultBytes) && (
         <section className="flex flex-col gap-3 animate-scale-in">
           <h2 className="text-base font-medium text-base-800">결과 미리보기</h2>
           <div className="h-[60dvh] overflow-hidden rounded-md border border-base-100 bg-base-0">
-            <ViewerShell url={resultSpzUrl} minimal />
+            <ViewerShell
+              url={resultSpzUrl ?? undefined}
+              fileBytes={resultBytes ?? undefined}
+              fileType="ply"
+              minimal
+            />
           </div>
           <button
             type="button"
             onClick={() => {
               setJobId(null);
               setResultSpzUrl(null);
+              setResultBytes(null);
             }}
             className="tactile self-start rounded-md border border-base-200 bg-base-50 px-3 py-1.5 text-sm text-base-700 hover:border-base-300"
           >

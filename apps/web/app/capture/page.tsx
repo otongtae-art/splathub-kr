@@ -34,6 +34,7 @@ export default function CapturePage() {
   const [step, setStep] = useState<'capture' | 'processing' | 'view'>('capture');
   const [jobId, setJobId] = useState<string | null>(null);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
+  const [resultBytes, setResultBytes] = useState<Uint8Array | null>(null);
 
   const startCamera = useCallback(async () => {
     try {
@@ -284,7 +285,13 @@ export default function CapturePage() {
               <JobProgress
                 jobId={jobId}
                 onDone={(snap) => {
-                  setResultUrl(snap.result_ply_url || '/samples/butterfly.spz');
+                  if (snap.result_ply_bytes) {
+                    setResultBytes(snap.result_ply_bytes);
+                    setResultUrl(null);
+                  } else {
+                    setResultUrl(snap.result_ply_url || '/samples/butterfly.spz');
+                    setResultBytes(null);
+                  }
                   setStep('view');
                 }}
                 onError={() => {
@@ -296,10 +303,16 @@ export default function CapturePage() {
           </div>
         )}
 
-        {step === 'view' && resultUrl && (
+        {step === 'view' && (resultUrl || resultBytes) && (
           <div className="flex flex-1 flex-col animate-scale-in">
             <div className="flex-1">
-              <ViewerShell url={resultUrl} autoRotate minimal />
+              <ViewerShell
+                url={resultUrl ?? undefined}
+                fileBytes={resultBytes ?? undefined}
+                fileType="ply"
+                autoRotate
+                minimal
+              />
             </div>
             <div className="safe-bottom flex items-center justify-center gap-2 border-t border-base-100 px-5 py-4 sm:px-8">
               <button
@@ -308,6 +321,7 @@ export default function CapturePage() {
                   setStep('capture');
                   setJobId(null);
                   setResultUrl(null);
+                  setResultBytes(null);
                   setFrames([]);
                 }}
                 className="tactile inline-flex items-center gap-1.5 rounded-md bg-accent px-4 py-2 text-sm font-medium text-base-0 transition-colors hover:bg-accent-bright"

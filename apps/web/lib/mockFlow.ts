@@ -20,7 +20,13 @@ export type MockJobSnapshot = {
   progress: number;
   worker_backend: string | null;
   result_model_id: string | null;
+  /** 샘플 .spz 경로 등 URL 기반 결과 */
   result_ply_url: string | null;
+  /**
+   * 클라이언트에서 생성된 .ply 바이트. Spark.js의 `fileBytes` 옵션에 직접
+   * 전달해 Blob URL 포맷 감지 실패를 피한다.
+   */
+  result_ply_bytes: Uint8Array | null;
   error_code: string | null;
   error_message: string | null;
   thumbnail_url: string | null;
@@ -58,6 +64,7 @@ export function startMockJob(options: {
     worker_backend: 'browser_gen3d',
     result_model_id: null,
     result_ply_url: null,
+    result_ply_bytes: null,
     error_code: null,
     error_message: null,
     thumbnail_url: options.thumbnailUrl,
@@ -103,7 +110,7 @@ async function runGeneration(id: string, files: File[]): Promise<void> {
 
   emit(id, { status: 'training', progress: 40 });
 
-  const blob = await generateSplatFromPhotos(files, {
+  const plyBytes = await generateSplatFromPhotos(files, {
     onProgress: (frac) => {
       // 40% ~ 85% 구간을 생성 진행률로 매핑
       const pct = Math.round(40 + frac * 45);
@@ -114,14 +121,12 @@ async function runGeneration(id: string, files: File[]): Promise<void> {
   emit(id, { status: 'postprocessing', progress: 90 });
   await tick();
 
-  // Blob URL 생성 — viewer가 직접 fetch 가능
-  const plyUrl = URL.createObjectURL(blob);
-
   emit(id, {
     status: 'done',
     progress: 100,
     result_model_id: `model-${id}`,
-    result_ply_url: plyUrl,
+    // 바이트 배열을 viewer에 직접 전달 — Blob URL 포맷 감지 실패 회피
+    result_ply_bytes: plyBytes,
   });
 }
 
