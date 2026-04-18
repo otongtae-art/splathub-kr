@@ -3,23 +3,25 @@
 Modal 에 배포되는 FastAPI 앱. HF Space 의 인증 ZeroGPU 쿼터가 소진됐을 때
 브라우저가 자동으로 이쪽으로 fallback 한다.
 
-핵심:
-- GPU 를 Modal 에서 돌리지 않음 — Modal 은 "다른 IP 에서 나가는 proxy" 역할만
-- Modal 컨테이너에서 microsoft/TRELLIS 를 **익명**으로 호출
-- Vercel IP 풀과 다른 IP 에서 나가므로 익명 쿼터가 독립적으로 계산됨
+핵심 설계:
+- GPU 를 Modal 에서 돌리지 않음 — Modal 은 "얇은 Python 프록시" 역할만
+- microsoft/TRELLIS 를 **다른 HF 계정의 토큰으로 authenticated 호출**
+  → 1순위(HF Space, floerw 계정) 와 **완전히 독립된 daily quota 풀** 확보
+  → 두 경로가 각각 하루치 쿼터를 갖게 되어 가용성 × 2
 - Modal 과금: CPU only, ~$0.0005/call, $30 크레딧이 수천 건 감당
 
+Modal Secret:
+  splathub-hf-token → HF_TOKEN=<stjnstl 계정 토큰>
+
 배포:
-  pip install modal>=0.70.0
-  modal token new
+  modal secret create splathub-hf-token HF_TOKEN=hf_xxxxxx
   modal deploy app.py
 
-배포 성공 시 출력되는 URL (아래는 예시):
-  https://<USER>--splathub-trellis-fallback-app.modal.run
-
-이 URL 이 실질적 endpoint base. 라우트:
-  POST /convert   JSON {image_b64} → JSON {ok, glb_b64, size}
-  GET  /health    헬스체크
+엔드포인트 URL 형식:
+  https://<USER>--app.modal.run
+  라우트:
+    POST /convert   JSON {image_b64} → JSON {ok, glb_b64, size}
+    GET  /health    헬스체크
 """
 
 from __future__ import annotations
@@ -52,9 +54,8 @@ def create_fastapi_app():
     """FastAPI 앱을 Modal 컨테이너 안에서 생성 — CORS + 라우트 정의."""
     import base64
 
-    from fastapi import FastAPI, HTTPException
+    from fastapi import Body, FastAPI, HTTPException
     from fastapi.middleware.cors import CORSMiddleware
-    from pydantic import BaseModel
 
     from gradio_client import Client, handle_file
 
@@ -69,9 +70,6 @@ def create_fastapi_app():
         max_age=3600,
     )
 
-    class ConvertRequest(BaseModel):
-        image_b64: str
-
     @web.get("/health")
     def health():
         return {
@@ -82,13 +80,18 @@ def create_fastapi_app():
         }
 
     @web.post("/convert")
-    def convert(req: ConvertRequest):
-        """이미지(base64) → TRELLIS 익명 호출 → .glb(base64)."""
-        if not req.image_b64:
+    def convert(payload: dict = Body(...)):
+        """이미지(base64) → TRELLIS 익명 호출 → .glb(base64).
+
+        Body JSON: {"image_b64": "<base64 jpeg/png>"}
+        Body(...) 강제로 query 파싱 방지 — FastAPI 0.136+ 에서 필요.
+        """
+        image_b64 = (payload or {}).get("image_b64")
+        if not image_b64:
             raise HTTPException(status_code=400, detail="image_b64 required")
 
         try:
-            image_bytes = base64.b64decode(req.image_b64)
+            image_bytes = base64.b64decode(image_b64)
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"invalid base64: {e}")
 
@@ -97,8 +100,14 @@ def create_fastapi_app():
             tmp_path = tf.name
 
         try:
-            # 익명 호출 — token 생략. Modal IP 에서 나가므로 Vercel 쿼터와 독립.
-            client = Client(TRELLIS_SPACE_ID)
+            # stjnstl 계정 토큰으로 authenticated 호출 — floerw(HF Space 1순위)
+            # 와 완전히 독립된 daily quota 풀 확보.
+            hf_token = os.environ.get("HF_TOKEN")
+            if hf_token:
+                client = Client(TRELLIS_SPACE_ID, hf_token=hf_token)
+            else:
+                # Secret 미설정 fallback — 익명 (쿼터 공유, 거의 실패)
+                client = Client(TRELLIS_SPACE_ID)
 
             client.predict(api_name="/start_session")
 
@@ -157,6 +166,7 @@ def create_fastapi_app():
 
 @app.function(
     image=image,
+    secrets=[modal.Secret.from_name("splathub-hf-token")],
     timeout=300,
     scaledown_window=120,  # 2분 warm keep — 연속 호출 시 빠름
     min_containers=0,      # idle 시 scale to zero, $0 보장

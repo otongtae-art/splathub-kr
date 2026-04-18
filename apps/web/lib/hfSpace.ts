@@ -10,7 +10,12 @@
  * "조금 느리지만 계속 동작" 을 경험.
  */
 
-const MODAL_FALLBACK_URL = process.env.NEXT_PUBLIC_MODAL_FALLBACK_URL || '';
+// Modal fallback endpoint — public URL 이라 노출 OK. env override 가능.
+// otongtae-art Modal 계정의 splathub-trellis-fallback 앱, stjnstl HF 토큰으로
+// authenticated 호출 → floerw HF Space 와 독립된 daily quota 풀.
+const MODAL_FALLBACK_URL =
+  process.env.NEXT_PUBLIC_MODAL_FALLBACK_URL ||
+  'https://otongtae-art--app.modal.run/convert';
 
 export function isHfSpaceConfigured(): boolean {
   return true;
