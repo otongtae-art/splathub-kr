@@ -7,3 +7,9 @@ huggingface_hub==0.26.5
 fastapi==0.115.6
 uvicorn==0.32.1
 python-multipart==0.0.17
+
+# 배경 제거 파이프라인 — microsoft/TRELLIS 의 내장 U2Net(2020) 대신 최신
+# BiRefNet(2024) 으로 대체하기 위함. rembg 가 onnxruntime 을 사용.
+rembg==2.0.61
+Pillow==10.4.0
+onnxruntime==1.19.2

@@ -7,9 +7,15 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# 시스템 의존성 최소화 (Gradio/gradio_client 는 순수 Python)
+# 시스템 의존성:
+# - curl: healthcheck
+# - libgl1, libglib2.0-0: rembg 가 OpenCV 를 사용하므로 필요
+# - libgomp1: onnxruntime 이 OpenMP 사용
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    libgl1 \
+    libglib2.0-0 \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 # HF Spaces 관례: 비루트 사용자 user(uid 1000) 로 실행

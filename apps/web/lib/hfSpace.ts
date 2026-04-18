@@ -1,23 +1,24 @@
 'use client';
 
 /**
- * TRELLIS 호출 — 객체 분할 전처리 + Ladder of Free.
+ * TRELLIS 호출 — Ladder of Free.
  *
  * 파이프라인:
- *   1. (선택) 클라이언트 BiRefNet/RMBG 분할 → RGBA PNG with clean alpha
- *   2. 1순위: /api/hf-3d (Vercel proxy) → floerw HF Space
- *   3. 2순위: Modal endpoint (stjnstl 토큰)
+ *   1순위: /api/hf-3d (Vercel proxy) → floerw HF Space
+ *          → HF Space 내부에서 BiRefNet 로 배경 제거 → TRELLIS
+ *   2순위: Modal endpoint (stjnstl 토큰) → microsoft/TRELLIS 직접 호출
  *
- * 전처리가 왜 중요한가:
- *   TRELLIS 내부 rembg + U2Net(2020) 은 배경 halo 를 남기고, 디퓨전 모델이
- *   halo 를 객체로 오인해 blob geometry 환각 → "괴물" 결과. 우리가 먼저
- *   깨끗한 alpha 를 계산해서 RGBA PNG 로 보내면 TRELLIS 가 내장 U2Net 을
- *   건너뛰고 우리 mask 를 사용해 객체만 재구성한다.
+ * 배경 제거를 서버(HF Space)에서 하는 이유:
+ *   TRELLIS 내부 rembg + U2Net(2020) 은 배경 halo 를 남기고 디퓨전 모델이
+ *   halo 를 객체로 오인해 blob geometry 환각 → "괴물". 우리 HF Space 에서
+ *   먼저 BiRefNet(2024, MIT) 으로 깨끗한 alpha 를 만들어 TRELLIS 에 넘겨
+ *   TRELLIS 가 내장 U2Net 을 스킵하게 함.
+ *
+ *   브라우저 쪽 Transformers.js RMBG 는 custom model 이슈로 불안정 → 서버로
+ *   일원화하는 게 더 robust.
  *
  * HF 쿼터 소진 시 자동으로 Modal 로 fallback.
  */
-
-import { segmentAndCenterImage } from './segment';
 
 // Modal fallback endpoint — public URL 이라 노출 OK. env override 가능.
 // otongtae-art Modal 계정의 splathub-trellis-fallback 앱, stjnstl HF 토큰으로
@@ -176,64 +177,32 @@ export async function callHfSpace(
     meshSimplify?: number;
     textureSize?: number;
     onProgress?: ProgressCb;
-    /** 객체 분할 전처리 건너뛰기 (기본 false — 권장: 항상 분할). */
-    skipSegmentation?: boolean;
   } = {},
 ): Promise<HfSpaceResult> {
-  const { onProgress, skipSegmentation = false } = options;
+  const { onProgress } = options;
 
-  // ─ 0단계: 클라이언트에서 객체 분할 (RGBA PNG) ─────────────────────────
-  let processedImage = image;
-  if (!skipSegmentation) {
-    try {
-      onProgress?.(0.02, '객체 인식 준비');
-      processedImage = await segmentAndCenterImage(image, {
-        onProgress: (sp) => {
-          if (sp.stage === 'downloading') {
-            onProgress?.(
-              0.02 + sp.progress * 0.08,
-              `AI 모델 다운로드 ${Math.round(sp.progress * 100)}%`,
-            );
-          } else if (sp.stage === 'segmenting') {
-            onProgress?.(
-              0.1 + sp.progress * 0.1,
-              '객체 분할 중 (배경 제거)',
-            );
-          }
-        },
-      });
-      console.info(
-        `[hfSpace] segmentation done: ${image.size} → ${processedImage.size} bytes`,
-      );
-      onProgress?.(0.2, '객체 분할 완료');
-    } catch (err) {
-      // 분할 실패 시 원본으로 fallback — TRELLIS 가 자체 U2Net 으로 처리.
-      // 사용자 경험 보존 목적 (완전 차단보다 fallback 이 나음).
-      console.warn('[hfSpace] segmentation failed, using raw image:', err);
-      processedImage = image;
-    }
-  }
-
-  // ─ 가짜 진행률 (서버 호출 단계) ────────────────────────────────────
+  // 배경 제거는 이제 서버(HF Space) 에서 수행. 브라우저는 원본 그대로 전송.
+  // 가짜 진행률 — 서버가 스트리밍 안 주니까 UX 용 애니메이션.
   let lastLabel = 'GPU 추론 대기';
   const startTs = Date.now();
   const fakeProgressTimer = setInterval(() => {
     const elapsed = Date.now() - startTs;
-    const p = Math.min(0.85, 0.2 + (1 - Math.exp(-elapsed / 20000)) * 0.65);
+    const p = Math.min(0.85, 0.1 + (1 - Math.exp(-elapsed / 20000)) * 0.75);
     let label = lastLabel;
     if (elapsed < 3000) label = '서버에 이미지 전송';
-    else if (elapsed < 8000) label = 'GPU 큐 진입';
-    else if (elapsed < 25000) label = 'H200 GPU 추론 중';
-    else if (elapsed < 55000) label = '텍스처 추출 중';
+    else if (elapsed < 8000) label = '객체 분할 (BiRefNet)';
+    else if (elapsed < 15000) label = 'GPU 큐 진입';
+    else if (elapsed < 40000) label = 'H200 GPU 3D 재구성';
+    else if (elapsed < 60000) label = '텍스처 추출 중';
     else label = 'GPU 큐 대기 (백업 경로)';
     lastLabel = label;
     onProgress?.(p, label);
   }, 1000);
 
   try {
-    // 1순위
+    // 1순위 — HF Space (내부에서 BiRefNet + TRELLIS)
     try {
-      const result = await tryHfSpace(processedImage, onProgress);
+      const result = await tryHfSpace(image, onProgress);
       return result;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -247,7 +216,7 @@ export async function callHfSpace(
         );
       }
       console.warn('[hfSpace] primary failed, trying Modal fallback:', msg);
-      return await tryModalFallback(processedImage, onProgress);
+      return await tryModalFallback(image, onProgress);
     }
   } finally {
     clearInterval(fakeProgressTimer);
