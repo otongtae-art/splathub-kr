@@ -45,7 +45,12 @@ HF_TOKEN = os.environ.get("HF_TOKEN")
 if not HF_TOKEN:
     logger.warning("HF_TOKEN 이 설정되지 않음 — TRELLIS 호출 시 GPU queue 대기 길어질 수 있음")
 
-TRELLIS_SPACE_ID = os.environ.get("TRELLIS_SPACE_ID", "microsoft/TRELLIS")
+# TRELLIS.2 (2026-01-29, MIT, 4B 파라미터, PBR + 1536³) 를 기본으로 사용.
+# v1 으로 돌아가려면 환경변수 TRELLIS_SPACE_ID=microsoft/TRELLIS.
+TRELLIS_SPACE_ID = os.environ.get("TRELLIS_SPACE_ID", "microsoft/TRELLIS.2")
+
+# 품질/속도 트레이드오프. "1024" 가 기본, "1536" 이면 최고 품질 (~2배 느림).
+TRELLIS_RESOLUTION = os.environ.get("TRELLIS_RESOLUTION", "1024")
 
 
 # ─── TRELLIS 클라이언트 연결 (lazy) ────────────────────────────────────
@@ -180,23 +185,35 @@ def convert_image_to_glb(image_path: str) -> str:
         api_name="/preprocess_image",
     )
 
-    logger.info("[step 3/4] image_to_3d (GPU inference, 15-60s)")
+    logger.info("[step 3/4] image_to_3d (TRELLIS.2: 3-stage sparse/shape/tex)")
+    # TRELLIS.2 는 3 단계 (sparse-structure + shape-slat + tex-slat) 각각 별도
+    # guidance/rescale/steps 파라미터. 기본값은 Microsoft Space UI 기본.
+    # 품질 업 원하면 sampling_steps 를 25-30 까지 올리고, resolution 을
+    # "1536" 으로 변경 (속도 2배 느려짐).
     client.predict(
         image=handle_file(preprocessed),
-        multiimages=[],
         seed=0,
+        resolution=TRELLIS_RESOLUTION,
         ss_guidance_strength=7.5,
+        ss_guidance_rescale=0.7,
         ss_sampling_steps=12,
-        slat_guidance_strength=3.0,
-        slat_sampling_steps=12,
-        multiimage_algo="stochastic",
+        ss_rescale_t=5.0,
+        shape_slat_guidance_strength=7.5,
+        shape_slat_guidance_rescale=0.5,
+        shape_slat_sampling_steps=12,
+        shape_slat_rescale_t=3.0,
+        tex_slat_guidance_strength=1.0,
+        tex_slat_guidance_rescale=0.0,
+        tex_slat_sampling_steps=12,
+        tex_slat_rescale_t=3.0,
         api_name="/image_to_3d",
     )
 
-    logger.info("[step 4/4] extract_glb")
+    logger.info("[step 4/4] extract_glb (PBR textures)")
+    # TRELLIS.2: decimation_target 100k-500k (높을수록 정밀), texture 1024-4096
     glb = client.predict(
-        mesh_simplify=0.95,
-        texture_size=1024,
+        decimation_target=300000,  # 30만 폴리곤, 웹뷰어 적정
+        texture_size=2048,          # 2K PBR 텍스처
         api_name="/extract_glb",
     )
 

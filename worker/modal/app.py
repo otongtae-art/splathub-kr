@@ -50,7 +50,8 @@ image = (
     )
 )
 
-TRELLIS_SPACE_ID = "microsoft/TRELLIS"
+TRELLIS_SPACE_ID = "microsoft/TRELLIS.2"
+TRELLIS_RESOLUTION = "1024"  # "512" | "1024" | "1536"
 
 
 # ─── BiRefNet 배경 제거 헬퍼 ───────────────────────────────────────────
@@ -176,21 +177,29 @@ def create_fastapi_app():
                 api_name="/preprocess_image",
             )
 
+            # TRELLIS.2 의 3-stage 파이프라인: sparse + shape_slat + tex_slat
             client.predict(
                 image=handle_file(pre),
-                multiimages=[],
                 seed=0,
+                resolution=TRELLIS_RESOLUTION,
                 ss_guidance_strength=7.5,
+                ss_guidance_rescale=0.7,
                 ss_sampling_steps=12,
-                slat_guidance_strength=3.0,
-                slat_sampling_steps=12,
-                multiimage_algo="stochastic",
+                ss_rescale_t=5.0,
+                shape_slat_guidance_strength=7.5,
+                shape_slat_guidance_rescale=0.5,
+                shape_slat_sampling_steps=12,
+                shape_slat_rescale_t=3.0,
+                tex_slat_guidance_strength=1.0,
+                tex_slat_guidance_rescale=0.0,
+                tex_slat_sampling_steps=12,
+                tex_slat_rescale_t=3.0,
                 api_name="/image_to_3d",
             )
 
             glb = client.predict(
-                mesh_simplify=0.95,
-                texture_size=1024,
+                decimation_target=300000,
+                texture_size=2048,
                 api_name="/extract_glb",
             )
             glb_path = glb[0] if isinstance(glb, (list, tuple)) else glb
