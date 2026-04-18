@@ -1,0 +1,2 @@
+# 로컬에서 modal CLI 만 있으면 됨. app.py 의 의존성은 modal.Image 정의에.
+modal>=0.70.0

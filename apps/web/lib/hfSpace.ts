@@ -1,20 +1,21 @@
 'use client';
 
 /**
- * TRELLIS 서버 프록시 호출 — /api/hf-3d 경로로 .glb 바이너리 수신.
+ * TRELLIS 호출 — Ladder of Free.
  *
- * 예전에는 브라우저에서 직접 Hugging Face Space 를 호출했으나 익명 요청은
- * GPU queue 에서 drop 되어서 서버로 프록시. 서버가 인증 토큰(HF_TOKEN env)을
- * 붙여 요청 → ZeroGPU 우선순위 확보.
+ * 1순위: /api/hf-3d (Vercel proxy) → floerw HF Space → 인증 토큰, 빠름
+ * 2순위: NEXT_PUBLIC_MODAL_FALLBACK_URL → Modal → microsoft/TRELLIS (익명)
+ *
+ * HF 쿼터 소진 시 자동으로 Modal 로 fallback. 사용자는 "쿼터 다 썼어" 대신
+ * "조금 느리지만 계속 동작" 을 경험.
  */
 
+const MODAL_FALLBACK_URL = process.env.NEXT_PUBLIC_MODAL_FALLBACK_URL || '';
+
 export function isHfSpaceConfigured(): boolean {
-  // 클라이언트에서는 서버 env 확인 불가. 항상 활성화된 것으로 간주.
-  // 서버 측에서 HF_TOKEN 누락 시 500 반환하면 그때 에러 처리.
   return true;
 }
 
-/** 레거시 호환용 — 기존 호출부가 getHfSpaceUrl 을 체크 */
 export function getHfSpaceUrl(): string | null {
   return '/api/hf-3d';
 }
@@ -22,12 +23,137 @@ export function getHfSpaceUrl(): string | null {
 export type HfSpaceResult = {
   bytes: Uint8Array;
   fileType: 'glb';
+  backend: 'hf-space' | 'modal-fallback';
 };
 
 type ProgressCb = (frac: number, label?: string) => void;
 
 /**
- * 단일 이미지 → 3D GLB. Vercel 서버 route 를 통해 TRELLIS 호출.
+ * 파일을 base64 로 변환 — Modal endpoint 에 JSON body 로 보낼 때 필요.
+ */
+async function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      // data:image/jpeg;base64,XXXX → XXXX 만
+      const idx = result.indexOf(',');
+      resolve(idx >= 0 ? result.slice(idx + 1) : result);
+    };
+    reader.onerror = () => reject(new Error('file read failed'));
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * HF 에러 메시지에서 "쿼터 소진" 패턴 감지.
+ */
+function isQuotaExhaustedError(msg: string): boolean {
+  return /quota|ZeroGPU|daily.*quota|subscribe\/pro|No GPU was available/i.test(msg);
+}
+
+/**
+ * 1순위: HF Space (Vercel 경유, 인증됨).
+ */
+async function tryHfSpace(
+  image: File,
+  onProgress?: ProgressCb,
+): Promise<HfSpaceResult> {
+  onProgress?.(0.05, 'HF Space 호출');
+
+  const fd = new FormData();
+  fd.append('image', image);
+
+  const res = await fetch('/api/hf-3d', {
+    method: 'POST',
+    body: fd,
+  });
+
+  if (!res.ok) {
+    let msg = `status_${res.status}`;
+    try {
+      const ej = await res.json();
+      if (ej?.error === 'gpu_busy') {
+        msg = 'gpu_busy';
+      } else if (ej?.message) {
+        msg = ej.message;
+      }
+    } catch {
+      /* json parse 실패 — raw 메시지 그대로 */
+    }
+    throw new Error(msg);
+  }
+
+  onProgress?.(0.95, '.glb 수신');
+  const buf = await res.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  onProgress?.(1, '완료');
+
+  const elapsedMs = res.headers.get('x-trellis-elapsed-ms');
+  console.info(
+    `[hfSpace] TRELLIS success: ${bytes.byteLength} bytes${elapsedMs ? `, ${elapsedMs}ms` : ''}`,
+  );
+
+  return { bytes, fileType: 'glb', backend: 'hf-space' };
+}
+
+/**
+ * 2순위: Modal fallback (익명).
+ */
+async function tryModalFallback(
+  image: File,
+  onProgress?: ProgressCb,
+): Promise<HfSpaceResult> {
+  if (!MODAL_FALLBACK_URL) {
+    throw new Error('Modal fallback URL not configured');
+  }
+
+  onProgress?.(0.1, 'Modal 백업 경로로 재시도');
+
+  // Modal fastapi_endpoint 는 query/body 로 image_b64 를 받음
+  const b64 = await fileToBase64(image);
+
+  onProgress?.(0.15, 'Modal 에 요청 전송');
+
+  // Modal fastapi_endpoint 는 JSON body 로 {image_b64: "..."} 받음.
+  const res = await fetch(MODAL_FALLBACK_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image_b64: b64 }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Modal ${res.status}: ${text.slice(0, 200)}`);
+  }
+
+  const json = (await res.json()) as {
+    ok: boolean;
+    glb_b64?: string;
+    size?: number;
+    error?: string;
+    backend?: string;
+  };
+
+  if (!json.ok || !json.glb_b64) {
+    throw new Error(json.error || 'Modal returned no glb');
+  }
+
+  onProgress?.(0.95, '.glb 수신 (Modal)');
+
+  // Base64 → Uint8Array
+  const binStr = atob(json.glb_b64);
+  const bytes = new Uint8Array(binStr.length);
+  for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
+
+  onProgress?.(1, '완료');
+  console.info(`[hfSpace] Modal fallback success: ${bytes.byteLength} bytes`);
+
+  return { bytes, fileType: 'glb', backend: 'modal-fallback' };
+}
+
+/**
+ * 단일 이미지 → 3D GLB. 1순위 실패 시 2순위 자동 fallback.
  */
 export async function callHfSpace(
   image: File,
@@ -39,66 +165,43 @@ export async function callHfSpace(
   } = {},
 ): Promise<HfSpaceResult> {
   const { onProgress } = options;
-  onProgress?.(0.05, '서버에 이미지 전송');
 
-  const fd = new FormData();
-  fd.append('image', image);
-  if (options.meshSimplify) fd.append('meshSimplify', String(options.meshSimplify));
-  if (options.textureSize) fd.append('textureSize', String(options.textureSize));
-
-  // 진행률은 서버가 하는 일을 추측해서 표시 — 실제 진행률 streaming 은
-  // /api/hf-3d 가 fetch response 로 한 번에 돌려주므로 불가능.
-  // UX 용으로 중간 단계 표시.
+  // 가짜 진행률 — 서버가 스트리밍 안 주니까 UX 용 애니메이션.
+  let lastLabel = 'GPU 추론 대기';
+  const startTs = Date.now();
   const fakeProgressTimer = setInterval(() => {
-    // 10% → 최대 85% 까지 서서히 증가 (서버 응답 전까지)
-    const now = Date.now();
-    const elapsed = now - startTs;
-    // 60초 기준으로 85%까지 비선형 증가
+    const elapsed = Date.now() - startTs;
     const p = Math.min(0.85, 0.1 + (1 - Math.exp(-elapsed / 20000)) * 0.75);
-    let label = 'GPU 추론 대기';
+    let label = lastLabel;
     if (elapsed < 3000) label = '이미지 전처리';
     else if (elapsed < 8000) label = 'GPU 큐 진입';
     else if (elapsed < 25000) label = 'H200 GPU 추론 중';
-    else label = '텍스처 추출 중';
+    else if (elapsed < 55000) label = '텍스처 추출 중';
+    else label = 'GPU 큐 대기 (백업 경로)';
+    lastLabel = label;
     onProgress?.(p, label);
   }, 1000);
-  const startTs = Date.now();
 
   try {
-    const res = await fetch('/api/hf-3d', {
-      method: 'POST',
-      body: fd,
-    });
-    clearInterval(fakeProgressTimer);
-
-    if (!res.ok) {
-      let msg = `status_${res.status}`;
-      try {
-        const ej = await res.json();
-        if (ej?.error === 'gpu_busy') {
-          msg = 'GPU 서버가 혼잡합니다. 잠시 후 다시 시도해주세요.';
-        } else if (ej?.message) {
-          msg = ej.message;
-        }
-      } catch {
-        /* body 가 json 아닐 수 있음 */
+    // 1순위
+    try {
+      const result = await tryHfSpace(image, onProgress);
+      return result;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // 쿼터 소진 or 5xx 일 때만 fallback. 400 류는 그대로 올림.
+      if (!isQuotaExhaustedError(msg) && !/502|503|504|gpu_busy/.test(msg)) {
+        throw err;
       }
-      throw new Error(msg);
+      if (!MODAL_FALLBACK_URL) {
+        throw new Error(
+          'HF 쿼터 소진됐지만 Modal 백업이 설정되지 않았습니다. 내일 다시 시도해주세요.',
+        );
+      }
+      console.warn('[hfSpace] primary failed, trying Modal fallback:', msg);
+      return await tryModalFallback(image, onProgress);
     }
-
-    onProgress?.(0.95, '.glb 수신');
-    const buf = await res.arrayBuffer();
-    const bytes = new Uint8Array(buf);
-
-    onProgress?.(1, '완료');
-    const elapsedMs = res.headers.get('x-trellis-elapsed-ms');
-    console.info(
-      `[hfSpace] TRELLIS success: ${bytes.byteLength} bytes${elapsedMs ? `, ${elapsedMs}ms` : ''}`,
-    );
-
-    return { bytes, fileType: 'glb' };
-  } catch (err) {
+  } finally {
     clearInterval(fakeProgressTimer);
-    throw err;
   }
 }
