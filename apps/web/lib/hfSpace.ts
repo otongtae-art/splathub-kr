@@ -20,6 +20,12 @@
  * HF 쿼터 소진 시 자동으로 Modal 로 fallback.
  */
 
+// HF Space URL — 브라우저에서 직접 호출 (Vercel 60초 timeout 우회).
+// 우리 HF Space 에 CORS 열려있고 HF_TOKEN 은 Space 쪽 env 에서 주입됨.
+const HF_SPACE_URL =
+  process.env.NEXT_PUBLIC_HF_SPACE_URL ||
+  'https://floerw-splathub-trellis-proxy.hf.space/api/convert';
+
 // Modal fallback endpoint — public URL 이라 노출 OK. env override 가능.
 // otongtae-art Modal 계정의 splathub-trellis-fallback 앱, stjnstl HF 토큰으로
 // authenticated 호출 → floerw HF Space 와 독립된 daily quota 풀.
@@ -68,7 +74,8 @@ function isQuotaExhaustedError(msg: string): boolean {
 }
 
 /**
- * 1순위: HF Space (Vercel 경유, 인증됨).
+ * 1순위: HF Space 직접 호출 (Vercel 60초 timeout 우회).
+ * BiRefNet 첫 로드 + TRELLIS = 최대 100초 이상 걸릴 수 있음.
  */
 async function tryHfSpace(
   image: File,
@@ -79,7 +86,7 @@ async function tryHfSpace(
   const fd = new FormData();
   fd.append('image', image);
 
-  const res = await fetch('/api/hf-3d', {
+  const res = await fetch(HF_SPACE_URL, {
     method: 'POST',
     body: fd,
   });
@@ -88,8 +95,11 @@ async function tryHfSpace(
     let msg = `status_${res.status}`;
     try {
       const ej = await res.json();
-      if (ej?.error === 'gpu_busy') {
-        msg = 'gpu_busy';
+      // HF Space 가 반환하는 에러 구조: {detail: {error: "...", trace: "..."}}
+      if (ej?.detail?.error) {
+        msg = ej.detail.error;
+      } else if (ej?.error) {
+        msg = ej.error;
       } else if (ej?.message) {
         msg = ej.message;
       }

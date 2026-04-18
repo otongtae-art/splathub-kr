@@ -34,18 +34,71 @@ import modal
 
 app = modal.App("splathub-trellis-fallback")
 
-# CPU only 이미지 — GPU 쓸 일 없음
+# CPU only 이미지 — GPU 는 업스트림(TRELLIS Space)에서 돌림
+# BiRefNet 전처리를 위해 rembg + onnxruntime + Pillow 추가
 image = (
     modal.Image.debian_slim(python_version="3.11")
+    .apt_install("libgl1", "libglib2.0-0", "libgomp1")
     .pip_install(
         "gradio_client==1.3.0",
         "huggingface_hub==0.26.5",
         "fastapi[standard]>=0.115",
         "python-multipart",
+        "rembg==2.0.61",
+        "Pillow==10.4.0",
+        "onnxruntime==1.19.2",
     )
 )
 
 TRELLIS_SPACE_ID = "microsoft/TRELLIS"
+
+
+# ─── BiRefNet 배경 제거 헬퍼 ───────────────────────────────────────────
+
+_rembg_session = None
+
+
+def _get_rembg():
+    """rembg + BiRefNet-general-lite (2024, MIT) 세션. lazy init."""
+    global _rembg_session
+    if _rembg_session is None:
+        from rembg import new_session
+
+        print("[modal] loading BiRefNet-general-lite (first time ~200MB)")
+        _rembg_session = new_session("birefnet-general-lite")
+        print("[modal] BiRefNet ready")
+    return _rembg_session
+
+
+def _remove_bg_to_rgba(image_path: str) -> str:
+    """이미지에서 배경 제거 → RGBA PNG. 1.2x 패딩 + 정사각 중앙 배치."""
+    from PIL import Image
+    from rembg import remove
+
+    session = _get_rembg()
+    input_img = Image.open(image_path).convert("RGB")
+    output_img = remove(input_img, session=session, alpha_matting=False)
+
+    # 1.2x 패딩 + 정사각 1024 중앙
+    alpha = output_img.split()[-1]
+    bbox = alpha.getbbox()
+    if bbox is None:
+        canvas_img = output_img.resize((1024, 1024), Image.LANCZOS)
+    else:
+        bbox_w = bbox[2] - bbox[0]
+        bbox_h = bbox[3] - bbox[1]
+        bbox_size = max(bbox_w, bbox_h)
+        padded = int(bbox_size * 1.2)
+        cx = (bbox[0] + bbox[2]) // 2
+        cy = (bbox[1] + bbox[3]) // 2
+        canvas_img = Image.new("RGBA", (padded, padded), (0, 0, 0, 0))
+        canvas_img.paste(output_img, (padded // 2 - cx, padded // 2 - cy), output_img)
+        canvas_img = canvas_img.resize((1024, 1024), Image.LANCZOS)
+
+    out_path = image_path.rsplit(".", 1)[0] + "_rgba.png"
+    canvas_img.save(out_path, "PNG")
+    print(f"[modal] bg removed: {image_path} → {out_path}")
+    return out_path
 
 
 # ─── FastAPI app (전체 라우팅을 여기서) ─────────────────────────────────
@@ -100,6 +153,13 @@ def create_fastapi_app():
             tmp_path = tf.name
 
         try:
+            # 0) BiRefNet 으로 배경 제거 — TRELLIS 내장 U2Net(2020) 우회
+            try:
+                preprocessed_path = _remove_bg_to_rgba(tmp_path)
+            except Exception as e:
+                print(f"[modal] bg removal failed, using raw: {e}")
+                preprocessed_path = tmp_path
+
             # stjnstl 계정 토큰으로 authenticated 호출 — floerw(HF Space 1순위)
             # 와 완전히 독립된 daily quota 풀 확보.
             hf_token = os.environ.get("HF_TOKEN")
@@ -112,7 +172,7 @@ def create_fastapi_app():
             client.predict(api_name="/start_session")
 
             pre = client.predict(
-                image=handle_file(tmp_path),
+                image=handle_file(preprocessed_path),
                 api_name="/preprocess_image",
             )
 
