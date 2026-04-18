@@ -35,6 +35,8 @@ export default function CapturePage() {
   const [jobId, setJobId] = useState<string | null>(null);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [resultBytes, setResultBytes] = useState<Uint8Array | null>(null);
+  // TRELLIS 결과(.glb)를 받았는지 여부 — splat 이 아니라 mesh 뷰어를 써야 함.
+  const [resultType, setResultType] = useState<'splat' | 'glb'>('splat');
 
   const startCamera = useCallback(async () => {
     try {
@@ -285,12 +287,24 @@ export default function CapturePage() {
               <JobProgress
                 jobId={jobId}
                 onDone={(snap) => {
-                  if (snap.result_ply_bytes) {
+                  // TRELLIS 가 반환한 .glb 가 최우선 — mesh 뷰어로.
+                  if (snap.result_glb_bytes) {
+                    setResultBytes(snap.result_glb_bytes);
+                    setResultUrl(null);
+                    setResultType('glb');
+                  } else if (snap.result_ply_bytes) {
                     setResultBytes(snap.result_ply_bytes);
                     setResultUrl(null);
-                  } else {
-                    setResultUrl(snap.result_ply_url || '/samples/butterfly.spz');
+                    setResultType('splat');
+                  } else if (snap.result_ply_url) {
+                    setResultUrl(snap.result_ply_url);
                     setResultBytes(null);
+                    setResultType('splat');
+                  } else {
+                    // 실제 변환 결과 없음 — 샘플로 폴백하지 않고 실패로 간주.
+                    setCameraError('3D 변환 결과를 받지 못했습니다. 다시 시도해주세요.');
+                    setStep('capture');
+                    return;
                   }
                   setStep('view');
                 }}
@@ -309,7 +323,7 @@ export default function CapturePage() {
               <ViewerShell
                 url={resultUrl ?? undefined}
                 fileBytes={resultBytes ?? undefined}
-                fileType="splat"
+                fileType={resultType}
                 autoRotate
                 minimal
               />

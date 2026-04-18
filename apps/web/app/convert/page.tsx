@@ -16,6 +16,8 @@ export default function ConvertPage() {
   const [jobId, setJobId] = useState<string | null>(null);
   const [resultSpzUrl, setResultSpzUrl] = useState<string | null>(null);
   const [resultBytes, setResultBytes] = useState<Uint8Array | null>(null);
+  // TRELLIS .glb vs Spark .splat 분기 — 뷰어 엔진이 다름.
+  const [resultType, setResultType] = useState<'splat' | 'glb'>('splat');
   const [failed, setFailed] = useState(false);
 
   return (
@@ -63,12 +65,22 @@ export default function ConvertPage() {
           <JobProgress
             jobId={jobId}
             onDone={(snap) => {
-              if (snap.result_ply_bytes) {
+              // TRELLIS .glb 최우선
+              if (snap.result_glb_bytes) {
+                setResultBytes(snap.result_glb_bytes);
+                setResultSpzUrl(null);
+                setResultType('glb');
+              } else if (snap.result_ply_bytes) {
                 setResultBytes(snap.result_ply_bytes);
                 setResultSpzUrl(null);
-              } else {
-                setResultSpzUrl(snap.result_ply_url || '/samples/butterfly.spz');
+                setResultType('splat');
+              } else if (snap.result_ply_url) {
+                setResultSpzUrl(snap.result_ply_url);
                 setResultBytes(null);
+                setResultType('splat');
+              } else {
+                // 결과 없음 — 실패로 처리 (샘플 폴백 금지).
+                setFailed(true);
               }
             }}
             onError={() => setFailed(true)}
@@ -93,7 +105,7 @@ export default function ConvertPage() {
             <ViewerShell
               url={resultSpzUrl ?? undefined}
               fileBytes={resultBytes ?? undefined}
-              fileType="splat"
+              fileType={resultType}
               minimal
             />
           </div>

@@ -1,5 +1,9 @@
+# Docker SDK + Python 3.11 — 호환성 이슈 없이 단순 proxy.
+# huggingface_hub 은 0.26.x 대로 핀 — gradio 4.44.1 이 HfFolder 를 import 하는데
+# huggingface_hub 0.30+ 에서 제거됨. 0.26.5 가 HfFolder 있는 마지막 안정 버전.
 gradio==4.44.1
 gradio_client==1.3.0
-fastapi
-uvicorn
-python-multipart
+huggingface_hub==0.26.5
+fastapi==0.115.6
+uvicorn==0.32.1
+python-multipart==0.0.17

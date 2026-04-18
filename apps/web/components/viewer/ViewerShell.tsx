@@ -1,8 +1,13 @@
 'use client';
 
 /**
- * ViewerShell — GaussianSplatViewer의 레이아웃 래퍼.
- * url과 fileBytes 둘 다 pass-through. 하나만 전달되면 그 소스로 렌더.
+ * ViewerShell — 3D 뷰어 레이아웃 래퍼.
+ *
+ * fileType 에 따라 두 가지 엔진으로 라우팅:
+ *   - 'glb' → MeshViewer (Three.js GLTFLoader, TRELLIS 결과)
+ *   - 'ply' | 'spz' | 'splat' | 'sog' → GaussianSplatViewer (Spark.js)
+ *
+ * url 과 fileBytes 둘 다 pass-through. 하나만 전달되면 그 소스로 렌더.
  */
 
 import dynamic from 'next/dynamic';
@@ -14,10 +19,15 @@ const GaussianSplatViewer = dynamic(() => import('./GaussianSplatViewer'), {
   loading: () => <ViewerSkeleton />,
 });
 
+const MeshViewer = dynamic(() => import('./MeshViewer'), {
+  ssr: false,
+  loading: () => <ViewerSkeleton />,
+});
+
 type Props = {
   url?: string;
   fileBytes?: Uint8Array;
-  fileType?: 'ply' | 'spz' | 'splat' | 'sog';
+  fileType?: 'ply' | 'spz' | 'splat' | 'sog' | 'glb';
   title?: string;
   subtitle?: string;
   autoRotate?: boolean;
@@ -67,6 +77,13 @@ export default function ViewerShell({
               최신 Chrome / Edge에서 다시 시도해 주세요.
             </p>
           </div>
+        ) : fileType === 'glb' ? (
+          <MeshViewer
+            url={url}
+            fileBytes={fileBytes}
+            autoRotate={autoRotate}
+            onError={onError}
+          />
         ) : (
           <GaussianSplatViewer
             url={url}

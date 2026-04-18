@@ -56,7 +56,8 @@ def get_trellis() -> Client:
     global _trellis_client
     if _trellis_client is None:
         logger.info("connecting to %s", TRELLIS_SPACE_ID)
-        _trellis_client = Client(TRELLIS_SPACE_ID, token=HF_TOKEN)
+        # gradio_client 1.3.0 은 `hf_token` 키워드 사용 (최신 버전은 `token`).
+        _trellis_client = Client(TRELLIS_SPACE_ID, hf_token=HF_TOKEN)
     return _trellis_client
 
 

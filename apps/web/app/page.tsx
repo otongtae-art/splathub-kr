@@ -84,13 +84,21 @@ export default function DashboardPage() {
       result_ply_bytes: Uint8Array | null;
       result_glb_bytes: Uint8Array | null;
     }) => {
-      // 우선순위: HF Space의 .glb > 브라우저의 .splat > 샘플 fallback
+      // 우선순위: HF Space .glb > 브라우저 .splat > 원격 spz URL.
+      // 셋 다 없으면 실패 경로로 떨어뜨림 — 샘플 나비 폴백 금지
+      // (사용자가 실제 결과와 샘플을 구분 못 하는 치명적 UX 버그였음).
       const hasGlb = !!snap.result_glb_bytes;
       const hasSplat = !!snap.result_ply_bytes;
+      const hasUrl = !!snap.result_ply_url;
+      if (!hasGlb && !hasSplat && !hasUrl) {
+        setStep('upload');
+        setJobId(null);
+        return;
+      }
       const model: ModelEntry = {
         id: jobId || `model-${Date.now()}`,
         title: `모델 ${String(myModels.length + 1).padStart(2, '0')}`,
-        spzUrl: hasGlb || hasSplat ? null : snap.result_ply_url || '/samples/butterfly.spz',
+        spzUrl: hasGlb || hasSplat ? null : snap.result_ply_url,
         plyBytes: snap.result_ply_bytes,
         glbBytes: snap.result_glb_bytes,
         thumbnailUrl: sourceThumbnail,
