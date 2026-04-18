@@ -1,195 +1,186 @@
-"""
-SplatHub GPU Worker — HF Space ZeroGPU(H200) 무료 3D 재구성 파이프라인.
+"""SplatHub → TRELLIS Thin Proxy Space.
 
-TripoSR은 공식적으로 pip 패키지가 아니므로 앱 시작 시 `git clone`으로 소스를
-받아 sys.path에 추가한 뒤 `from tsr.system import TSR`로 import 한다.
-( hysts/TripoSR, stabilityai/TripoSR 등 공식 HF Space 배포와 같은 방식 )
+우리 Vercel Next.js 앱에서 직접 호출할 수 있는 REST 엔드포인트를 노출.
+TRELLIS Space (microsoft/TRELLIS) 의 Gradio API 를 Python gradio_client 로 감싸서
+"이미지 1장 → .glb 바이너리" 원샷 API 로 변환.
+
+엔드포인트:
+  POST /api/convert    multipart form { image: File } → model/gltf-binary
+  GET  /api/health     { status: "ok", target: "microsoft/TRELLIS" }
+  GET  /                Gradio UI (테스트용)
+
+환경변수 (HF Space Settings → Variables):
+  HF_TOKEN    필수. microsoft/TRELLIS 를 ZeroGPU 우선순위로 호출.
+
+왜 이 Space 가 필요한가:
+  - Vercel Node 의 @gradio/client JS 는 Gradio 4 Space 와 호환성 이슈로
+    "An error occurred" 만 리턴하고 실제 에러 유실.
+  - Python gradio_client 는 정상 동작 (검증됨, 14.8s 에 성공).
+  - Vercel Python serverless 는 Hobby tier 10s timeout 으로 불가.
+  - → 가장 간단한 해결은 우리 자체 HF Space 를 Python wrapper 로 두는 것.
 """
 
 from __future__ import annotations
 
-import os
-import subprocess
-import sys
+import io
 import logging
+import os
 import tempfile
+import traceback
 from pathlib import Path
 
-# ─── TripoSR 소스 설치 (최초 실행 시에만) ─────────────────────────────
-TRIPOSR_DIR = "/home/user/triposr"
-if not os.path.isdir(TRIPOSR_DIR):
-    print(f"[setup] cloning TripoSR to {TRIPOSR_DIR}")
-    subprocess.run(
-        ["git", "clone", "--depth", "1", "https://github.com/VAST-AI-Research/TripoSR.git", TRIPOSR_DIR],
-        check=True,
-    )
-sys.path.insert(0, TRIPOSR_DIR)
-
 import gradio as gr
-import numpy as np
-import torch
-from PIL import Image
-
-try:
-    import spaces  # type: ignore[import-not-found]
-except ImportError:  # pragma: no cover
-    spaces = None  # type: ignore[assignment]
+from fastapi import FastAPI, File, HTTPException, UploadFile, Response
+from fastapi.middleware.cors import CORSMiddleware
+from gradio_client import Client, handle_file
 
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
 )
-logger = logging.getLogger("splathub.worker")
+logger = logging.getLogger("splathub-proxy")
 
-GPU_DURATION_SECONDS = int(os.environ.get("SPLATHUB_GPU_DURATION", "60"))
+# 환경변수
+HF_TOKEN = os.environ.get("HF_TOKEN")
+if not HF_TOKEN:
+    logger.warning("HF_TOKEN 이 설정되지 않음 — TRELLIS 호출 시 GPU queue 대기 길어질 수 있음")
 
-
-def gpu_required(fn):
-    if spaces is None:
-        return fn
-    return spaces.GPU(duration=GPU_DURATION_SECONDS)(fn)
-
-
-# ─── 모델 로더 ─────────────────────────────────────────────────────────
-
-_bg_session = None
-_triposr_model = None
+TRELLIS_SPACE_ID = os.environ.get("TRELLIS_SPACE_ID", "microsoft/TRELLIS")
 
 
-def get_bg_session():
-    """rembg(U2Net 기반, MIT) 배경 제거 세션."""
-    global _bg_session
-    if _bg_session is not None:
-        return _bg_session
-    from rembg import new_session
-    _bg_session = new_session("u2net")
-    return _bg_session
+# ─── TRELLIS 클라이언트 연결 (lazy) ────────────────────────────────────
+
+_trellis_client: Client | None = None
 
 
-def get_triposr():
-    """TripoSR 모델 초기화. 첫 호출 시 HF에서 weight 다운로드."""
-    global _triposr_model
-    if _triposr_model is not None:
-        return _triposr_model
-    from tsr.system import TSR  # type: ignore[import-not-found]
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    logger.info("[triposr] loading weights on %s", device)
-    model = TSR.from_pretrained(
-        "stabilityai/TripoSR",
-        config_name="config.yaml",
-        weight_name="model.ckpt",
+def get_trellis() -> Client:
+    global _trellis_client
+    if _trellis_client is None:
+        logger.info("connecting to %s", TRELLIS_SPACE_ID)
+        _trellis_client = Client(TRELLIS_SPACE_ID, token=HF_TOKEN)
+    return _trellis_client
+
+
+# ─── 핵심 변환 함수 ────────────────────────────────────────────────────
+
+
+def convert_image_to_glb(image_path: str) -> str:
+    """단일 이미지 파일 → .glb 파일 경로.
+
+    TRELLIS 의 4-step 파이프라인을 순차 실행.
+    """
+    client = get_trellis()
+    logger.info("[step 1/4] start_session")
+    client.predict(api_name="/start_session")
+
+    logger.info("[step 2/4] preprocess_image")
+    preprocessed = client.predict(
+        image=handle_file(image_path),
+        api_name="/preprocess_image",
     )
-    model.renderer.set_chunk_size(8192)
-    model.to(device)
-    model.eval()
-    _triposr_model = model
-    return model
 
+    logger.info("[step 3/4] image_to_3d (GPU inference, 15-60s)")
+    client.predict(
+        image=handle_file(preprocessed),
+        multiimages=[],
+        seed=0,
+        ss_guidance_strength=7.5,
+        ss_sampling_steps=12,
+        slat_guidance_strength=3.0,
+        slat_sampling_steps=12,
+        multiimage_algo="stochastic",
+        api_name="/image_to_3d",
+    )
 
-# ─── 전처리 ────────────────────────────────────────────────────────────
+    logger.info("[step 4/4] extract_glb")
+    glb = client.predict(
+        mesh_simplify=0.95,
+        texture_size=1024,
+        api_name="/extract_glb",
+    )
 
-
-def remove_background_and_crop(image: Image.Image, padding: float = 0.1) -> Image.Image:
-    """RMBG 배경 제거 + alpha 기반 중앙 정사각 크롭 + 512 리사이즈."""
-    try:
-        from rembg import remove
-        session = get_bg_session()
-        image_rgba = remove(image.convert("RGBA"), session=session)
-    except Exception as e:
-        logger.warning("[rembg] fallback to original: %s", e)
-        image_rgba = image.convert("RGBA")
-
-    if image_rgba.mode == "RGBA":
-        alpha = np.array(image_rgba.split()[-1])
-        rows = np.any(alpha > 10, axis=1)
-        cols = np.any(alpha > 10, axis=0)
-        if rows.any() and cols.any():
-            y0, y1 = np.where(rows)[0][[0, -1]]
-            x0, x1 = np.where(cols)[0][[0, -1]]
-            w = x1 - x0
-            h = y1 - y0
-            side = int(max(w, h) * (1.0 + padding))
-            cx = (x0 + x1) // 2
-            cy = (y0 + y1) // 2
-            half = side // 2
-            l = max(0, cx - half)
-            t = max(0, cy - half)
-            r = min(image_rgba.width, cx + half)
-            b = min(image_rgba.height, cy + half)
-            image_rgba = image_rgba.crop((l, t, r, b))
-
-    return image_rgba.resize((512, 512), Image.LANCZOS)
-
-
-# ─── 메인 함수 ─────────────────────────────────────────────────────────
-
-
-@gpu_required
-def image_to_3d(image_path: str, remove_bg: bool = True) -> str:
-    """단일 이미지 → 3D mesh (.glb) 파일 경로."""
-    logger.info("[worker] input=%s, remove_bg=%s", image_path, remove_bg)
-    image = Image.open(image_path).convert("RGB")
-
-    if remove_bg:
-        image = remove_background_and_crop(image)
+    # glb 는 (download_path, preview_path) 튜플
+    if isinstance(glb, (list, tuple)):
+        glb_path = glb[0]
     else:
-        # 크롭만 수행
-        s = min(image.width, image.height)
-        l = (image.width - s) // 2
-        t = (image.height - s) // 2
-        image = image.crop((l, t, l + s, t + s)).resize((512, 512), Image.LANCZOS)
-
-    model = get_triposr()
-    with torch.no_grad():
-        scene_codes = model([image], device=model.device)
-        meshes = model.extract_mesh(scene_codes, has_vertex_color=True, resolution=256)
-
-    mesh = meshes[0]
-    out_path = os.path.join(tempfile.gettempdir(), f"splathub_{os.getpid()}.glb")
-    mesh.export(out_path, file_type="glb")
-    logger.info("[worker] exported %s (%d bytes)", out_path, os.path.getsize(out_path))
-    return out_path
+        glb_path = glb
+    logger.info("[done] glb_path=%s, size=%d", glb_path, os.path.getsize(glb_path))
+    return glb_path
 
 
-# ─── Gradio UI ─────────────────────────────────────────────────────────
+# ─── FastAPI 앱 ────────────────────────────────────────────────────────
+
+api = FastAPI(title="SplatHub TRELLIS Proxy")
+
+# 우리 Vercel 앱 + 로컬에서 호출 가능하도록 CORS open
+api.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+)
 
 
-DESCRIPTION = """
-# SplatHub Worker — Single Image → 3D Mesh
-
-사진 한 장을 업로드하면 **실제 객체 모양의 3D textured mesh (.glb)** 를
-생성합니다. NVIDIA H200 (ZeroGPU) 에서 약 3-5초 소요.
-
-- **모델**: TripoSR (Stability AI, MIT)
-- **배경 제거**: rembg U2Net (MIT)
-- **출력**: .glb (Three.js / Blender / Unity 모두 호환)
-"""
+@api.get("/api/health")
+def health():
+    return {"status": "ok", "target": TRELLIS_SPACE_ID, "has_token": bool(HF_TOKEN)}
 
 
-def build_ui() -> gr.Blocks:
-    with gr.Blocks(title="SplatHub Worker") as demo:
-        gr.Markdown(DESCRIPTION)
-        with gr.Row():
-            with gr.Column(scale=1):
-                image_in = gr.Image(label="입력 이미지", type="filepath", sources=["upload"])
-                remove_bg_checkbox = gr.Checkbox(label="배경 자동 제거", value=True)
-                btn = gr.Button("3D 생성", variant="primary")
-            with gr.Column(scale=1):
-                model_out = gr.Model3D(label="결과 3D mesh")
+@api.post("/api/convert")
+async def convert_endpoint(image: UploadFile = File(...)):
+    # 업로드 파일 → 임시 경로
+    suffix = Path(image.filename or "input.jpg").suffix or ".jpg"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tf:
+        content = await image.read()
+        tf.write(content)
+        tmp_path = tf.name
 
-        btn.click(
-            fn=image_to_3d,
-            inputs=[image_in, remove_bg_checkbox],
-            outputs=[model_out],
-            api_name="predict",
+    try:
+        glb_path = convert_image_to_glb(tmp_path)
+        with open(glb_path, "rb") as f:
+            glb_bytes = f.read()
+        return Response(
+            content=glb_bytes,
+            media_type="model/gltf-binary",
+            headers={"X-Trellis-Size": str(len(glb_bytes))},
         )
-    return demo
+    except Exception as e:
+        tb = traceback.format_exc()
+        logger.error("conversion failed: %s\n%s", e, tb)
+        raise HTTPException(
+            status_code=502,
+            detail={"error": str(e), "trace": tb[:2000]},
+        )
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
 
 
-demo = build_ui()
+# ─── Gradio UI (테스트용) ──────────────────────────────────────────────
+
+
+def gradio_wrapper(image_path: str):
+    return convert_image_to_glb(image_path)
+
+
+demo = gr.Interface(
+    fn=gradio_wrapper,
+    inputs=gr.Image(type="filepath", label="입력 이미지"),
+    outputs=gr.Model3D(label="3D Mesh (.glb)"),
+    title="SplatHub → TRELLIS Proxy",
+    description=(
+        "microsoft/TRELLIS 를 호출해 단일 이미지에서 3D mesh 를 생성하는 Proxy Space.\n\n"
+        "- REST: `POST /api/convert` (multipart: `image`) → model/gltf-binary\n"
+        "- Health: `GET /api/health`"
+    ),
+    allow_flagging="never",
+)
+
+
+# FastAPI 위에 Gradio UI 마운트
+app = gr.mount_gradio_app(api, demo, path="/")
 
 if __name__ == "__main__":
-    demo.queue(max_size=10).launch(
-        server_name="0.0.0.0",
-        server_port=int(os.environ.get("PORT", 7860)),
-    )
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", "7860")))

@@ -1,4 +1,1 @@
-# pre-requirements.txt 는 일반적으로 huggingface-hub 업그레이드 같은
-# 기본 의존성을 미리 설치할 때만 사용. TripoSR 은 pip 패키지가 아니라
-# runtime 에 git clone 하므로 여기서 제외.
-pip>=24.0
+# pre-requirements 비움 — 모든 의존성은 requirements.txt 에서 처리

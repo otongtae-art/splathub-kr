@@ -117,7 +117,7 @@ async function runGeneration(
 ): Promise<void> {
   const hfUrl = getHfSpaceUrl();
 
-  // ─ HF Space 모드 (서버 GPU, 진짜 3D mesh) ───────────────────────────
+  // ─ TRELLIS (서버 GPU, SOTA image-to-3D) — 기본 경로 ─────────────────
   if (hfUrl) {
     try {
       emit(id, { status: 'preprocessing', progress: 5 });
@@ -149,13 +149,20 @@ async function runGeneration(
       });
       return;
     } catch (err) {
-      // HF 호출 실패 — 브라우저 fallback 으로 이행
-      console.warn('[mockFlow] HF Space failed, falling back to browser', err);
+      // TRELLIS 실패 시 브라우저 gen3d fallback 은 제거됨 — 원통 껍데기 결과가
+      // 오히려 사용자 경험을 악화시켰다. 실패는 실패로 명확히 표시하고 재시도
+      // 유도가 더 나은 UX.
+      console.error('[mockFlow] TRELLIS failed', err);
+      const msg = err instanceof Error ? err.message : String(err);
       emit(id, {
-        status: 'preprocessing',
-        progress: 0,
-        error_message: '서버 변환 실패 → 브라우저 변환으로 전환',
+        status: 'failed',
+        progress: 100,
+        error_code: /GPU|서버|busy|503/i.test(msg) ? 'gpu_busy' : 'trellis_error',
+        error_message: /GPU|서버|busy|503/i.test(msg)
+          ? 'GPU 서버가 혼잡합니다. 1~2분 뒤 다시 시도해주세요.'
+          : `3D 변환에 실패했습니다: ${msg}`,
       });
+      return;
     }
   }
 

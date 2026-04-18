@@ -1,68 +1,43 @@
 ---
-title: SplatHub Worker (3D Mesh)
+title: SplatHub TRELLIS Proxy
 emoji: 🧊
 colorFrom: indigo
 colorTo: purple
 sdk: gradio
-sdk_version: 5.5.0
+sdk_version: 4.44.1
 app_file: app.py
 pinned: false
-short_description: Single image → 3D textured mesh (.glb) — free GPU
+short_description: Thin Python proxy → microsoft/TRELLIS (REST API for Vercel)
 license: mit
-hardware: zero-a10g
-tags:
-  - image-to-3d
-  - mesh-reconstruction
-  - triposr
 ---
 
-# SplatHub Worker — Single Image → 3D Mesh
+# SplatHub → TRELLIS Thin Proxy
 
-HF Spaces **ZeroGPU (NVIDIA H200, 무료)** 에서 돌아가는 실제 3D 재구성 파이프라인.
+이 Space 는 `microsoft/TRELLIS` 를 호출하는 **얇은 Python wrapper**. Vercel 의
+Node `@gradio/client` JS 가 Gradio 4 Space 와 호환성 이슈로 실제 에러를 숨기는
+문제를 우회하기 위해 만듦.
 
-사진 1장을 올리면 **실제 객체 모양의 3D textured mesh (.glb)** 가 생성됩니다.
+## REST 엔드포인트
 
-## 파이프라인
-
-| 단계 | 모델 | 라이선스 |
-|---|---|---|
-| 1. 배경 제거 | RMBG-1.4 | MIT |
-| 2. Single-image 3D 생성 | TripoSR | MIT |
-| 3. 텍스처 추출 | TripoSR 내장 | MIT |
-
-출력: `.glb` (Three.js, Blender, Unity, Godot 모두 열림)
-
-## 웹앱에서 호출
-
-```ts
-// splathub/apps/web/lib/workers/hf-space.ts
-import { Client } from '@gradio/client';
-
-const client = await Client.connect('YOUR_USERNAME/splathub-3d');
-const result = await client.predict('/predict', {
-  image: imageFile,
-  remove_bg: true,
-});
-// result.data[0] 는 .glb 파일 URL
+```
+POST /api/convert    multipart { image: File } → model/gltf-binary
+GET  /api/health     { status, target, has_token }
 ```
 
-## 배포 방법
+## 우리 웹앱에서 호출
 
-상세한 한국어 가이드: [`docs/FREE-GPU-SETUP.md`](../../docs/FREE-GPU-SETUP.md)
+```ts
+const fd = new FormData();
+fd.append('image', file);
+const res = await fetch('https://floerw-splathub-trellis-proxy.hf.space/api/convert', {
+  method: 'POST',
+  body: fd,
+});
+if (!res.ok) throw new Error(await res.text());
+const glbBytes = new Uint8Array(await res.arrayBuffer());
+```
 
-요약:
-1. https://huggingface.co 무료 가입
-2. Settings → Access Tokens → Write 권한 토큰 발급
-3. 로컬에서:
-   ```bash
-   cd worker/hf-space
-   export HF_TOKEN=hf_xxx
-   bash deploy.sh YOUR_USERNAME splathub-3d
-   ```
-4. `https://YOUR_USERNAME-splathub-3d.hf.space` 가 생성됨
-5. Vercel 환경변수 `HF_SPACE_URL` 에 이 URL 입력
+## 환경변수
 
-## 라이선스 주의
-
-TripoSR, RMBG-1.4 모두 MIT 라이선스 — **상업 사용 가능**. 어떤 비상업 모델도
-이 파이프라인에 포함되지 않음.
+Space Settings → Variables:
+- `HF_TOKEN` — 필수. microsoft/TRELLIS 를 ZeroGPU 우선순위로 호출하기 위한 토큰.

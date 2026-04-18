@@ -12,6 +12,7 @@ const nextConfig = {
   // 포함돼서 Vercel 250MB 제한을 넘김. 클라이언트 전용이므로 트레이싱에서 제외.
   outputFileTracingExcludes: {
     '*': [
+      // 클라이언트 전용 무거운 번들들 — 서버리스 250MB 제한 회피
       'node_modules/@huggingface/transformers/**',
       'node_modules/onnxruntime-node/**',
       'node_modules/onnxruntime-web/**',
@@ -19,6 +20,8 @@ const nextConfig = {
       'node_modules/@xenova/**',
       'node_modules/@sparkjsdev/**',
       'node_modules/three/**',
+      // @gradio/client 는 가볍지만 불필요하게 traced 되는 submodule 제거
+      'node_modules/@gradio/client/test/**',
     ],
   },
   // Skills 디렉토리는 앱 소스가 아니므로 webpack watch에서 제외
