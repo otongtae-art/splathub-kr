@@ -101,6 +101,9 @@ const config: Config = {
         'slide-up': 'slideUp 400ms cubic-bezier(0.16, 1, 0.3, 1)',
         'scale-in': 'scaleIn 200ms cubic-bezier(0.16, 1, 0.3, 1)',
         shimmer: 'shimmer 2s linear infinite',
+        // capture 페이지 — 셔터 플래시 + 특징점 팝
+        flash: 'flash 800ms ease-out forwards',
+        'feature-pop': 'featurePop 800ms ease-out forwards',
       },
       keyframes: {
         fadeIn: {
@@ -118,6 +121,19 @@ const config: Config = {
         shimmer: {
           '0%': { backgroundPosition: '-200% 0' },
           '100%': { backgroundPosition: '200% 0' },
+        },
+        // 셔터 플래시 — 하얀색 → 투명
+        flash: {
+          '0%': { opacity: '1' },
+          '60%': { opacity: '1' },
+          '100%': { opacity: '0' },
+        },
+        // 특징점 팝 — 작게 시작해 커지면서 페이드
+        featurePop: {
+          '0%': { opacity: '0', transform: 'translate(-50%, -50%) scale(0.3)' },
+          '30%': { opacity: '1', transform: 'translate(-50%, -50%) scale(1.3)' },
+          '60%': { opacity: '1', transform: 'translate(-50%, -50%) scale(1)' },
+          '100%': { opacity: '0', transform: 'translate(-50%, -50%) scale(0.8)' },
         },
       },
       transitionTimingFunction: {
