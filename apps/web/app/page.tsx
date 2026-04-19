@@ -170,13 +170,64 @@ export default function DashboardPage() {
             <div className="flex flex-col gap-6 animate-slide-up">
               <header className="flex flex-col gap-2">
                 <h1 className="text-3xl font-semibold tracking-tight text-base-900">
-                  사진으로 3D 모델 만들기
+                  3D 모델 만들기
                 </h1>
                 <p className="max-w-[55ch] text-base text-base-600">
-                  AI 깊이 추정(Depth Anything V2) 으로 객체 또는 공간의 3D Gaussian Splat 을
-                  브라우저 안에서 직접 생성합니다.
+                  품질과 속도 중에서 선택하세요. 둘 다 서버 GPU 비용 0원.
                 </p>
               </header>
+
+              {/* 2갈래 경로 선택 */}
+              <div className="grid gap-3 sm:grid-cols-2">
+                {/* 진짜 3D (권장) */}
+                <Link
+                  href="/capture"
+                  className="tactile group relative flex flex-col gap-2 overflow-hidden rounded-md border border-accent/40 bg-accent/[0.03] p-5 transition-all hover:border-accent/60 hover:bg-accent/[0.06]"
+                >
+                  <div className="absolute right-3 top-3 rounded-full bg-accent/90 px-2 py-0.5 text-[10px] font-medium tracking-wide text-base-0">
+                    권장
+                  </div>
+                  <div className="flex items-center gap-2 text-accent">
+                    <Camera size={16} weight="regular" />
+                    <h3 className="text-sm font-semibold">진짜 3D · 동영상 스캔</h3>
+                  </div>
+                  <p className="text-xs leading-relaxed text-base-600">
+                    15~20초 동영상 → 브라우저 WebGPU 로 <b>photogrammetry 학습</b>.
+                    삼성/애플 3D 스캐너와 같은 원리, 환각 없는 실제 측정 기반.
+                  </p>
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-base-500">
+                    <span>⏱ 5~15분</span>
+                    <span>🎯 품질 ⭐⭐⭐⭐</span>
+                    <span>💻 Chrome 134+</span>
+                  </div>
+                </Link>
+
+                {/* 빠른 프리뷰 */}
+                <div className="flex flex-col gap-2 rounded-md border border-base-200 bg-base-50 p-5">
+                  <div className="flex items-center gap-2 text-base-700">
+                    <MagicWand size={16} weight="regular" />
+                    <h3 className="text-sm font-semibold">빠른 프리뷰 · AI 생성</h3>
+                  </div>
+                  <p className="text-xs leading-relaxed text-base-500">
+                    사진 1장 → TRELLIS 가 3D 를 <b>상상</b>하여 30~60초 안에 결과.
+                    뒷면은 부정확할 수 있음 (AI 환각).
+                  </p>
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-base-400">
+                    <span>⏱ 30~60초</span>
+                    <span>🎯 품질 ⭐⭐</span>
+                    <span>💻 모든 브라우저</span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-base-400">
+                    ↓ 아래 영역에 사진을 드롭해서 시작
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs text-base-500">
+                <span className="inline-block h-px flex-1 bg-base-200" />
+                <span>빠른 프리뷰 업로드</span>
+                <span className="inline-block h-px flex-1 bg-base-200" />
+              </div>
 
               {/* 모드 선택 — 자동 / 객체 / 공간 */}
               <div className="grid grid-cols-3 gap-2 rounded-lg border border-base-100 bg-base-50 p-1.5">
