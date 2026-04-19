@@ -3,19 +3,18 @@
 /**
  * `/capture` — Polycam/애플 Object Capture 스타일 사진 기반 3D 캡처.
  *
+ * 핵심 개선 (2026-04): 객체 바운딩 박스 (target area) 도입.
+ *   - 박스 바깥은 어둡게 마스크 처리 → 사용자가 "객체 영역" 시각적으로 인지
+ *   - 박스 안 특징점만 검출/저장 → 배경 노이즈 제거
+ *   - 캡처 시 사진을 박스 + 20% 패딩으로 크롭 → Brush 가 배경 없이 학습
+ *   - 슬라이더로 박스 크기 조절 (작은 물체 / 큰 물체)
+ *
  * 흐름:
  *   1. 카메라 시작
- *   2. 셔터 버튼으로 사진 촬영 (또는 각도 변화 감지 시 자동)
- *   3. 촬영 직후: 사진 위에 feature points 점으로 애니메이션 (~800ms)
- *   4. 해당 카메라 각도를 3D 미니맵 구체(sphere)에 추가
- *   5. "15/20 사진 · 8/12 각도" 진행률 표시
- *   6. 조건 충족 → "학습 시작" → /capture/train → Brush
- *
- * 비용: $0 (서버 GPU 안 씀, Brush 가 클라이언트 WebGPU 로 학습).
- *
- * 참고:
- *   - Polycam: https://poly.cam/
- *   - Apple Object Capture: developer.apple.com/augmented-reality/object-capture/
+ *   2. 중앙 정사각 박스로 객체를 프레이밍 (슬라이더로 크기 조절)
+ *   3. 셔터 → 박스 영역 크롭 → 특징점 검출 (박스 내부만) → 애니메이션
+ *   4. 3D 미니맵에 각도 추가
+ *   5. 15+장 + 8구간 → 학습 → /capture/train → Brush
  */
 
 import {
@@ -35,6 +34,8 @@ const TARGET_SHOTS = 20;
 const MIN_SHOTS = 15;
 const SECTORS = 12;
 const SECTOR_ANGLE = 360 / SECTORS;
+// 캡처 시 박스 + 이만큼 패딩 비율 (1.2 = 20% 여유)
+const CROP_PADDING_RATIO = 1.2;
 
 type Shot = {
   id: string;
@@ -62,6 +63,8 @@ export default function CapturePage() {
   const [flashPhoto, setFlashPhoto] = useState<string | null>(null);
   const [orientationOK, setOrientationOK] = useState<boolean | null>(null);
   const [done, setDone] = useState(false);
+  // 타겟 박스 크기 비율 (화면 짧은 쪽 대비). 0.3 = 작은 물체, 0.8 = 큰 물체.
+  const [boxRatio, setBoxRatio] = useState(0.55);
 
   const sectorsCovered = new Set<number>();
   shots.forEach((s) => {
@@ -71,7 +74,6 @@ export default function CapturePage() {
     }
   });
 
-  // 카메라 시작
   const startCamera = useCallback(async () => {
     try {
       setCameraError(null);
@@ -105,7 +107,6 @@ export default function CapturePage() {
     void video.play().catch(() => {});
   }, [cameraActive]);
 
-  // DeviceOrientation 구독
   useEffect(() => {
     if (!cameraActive) return;
     if (typeof window === 'undefined') return;
@@ -134,19 +135,44 @@ export default function CapturePage() {
     setCameraActive(false);
   }, []);
 
-  // 셔터 — 사진 촬영 + 특징점 추출 + 애니메이션
+  /**
+   * 셔터: 전체 프레임 → 박스 영역 크롭 → 특징점 검출 (박스 내부만) → 저장.
+   */
   const captureShot = useCallback(async () => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    if (!vw || !vh) return;
+
+    // 박스 크기 계산 — 정사각, 짧은 변 기준
+    const shortSide = Math.min(vw, vh);
+    const boxSize = shortSide * boxRatio;
+    // 여유 패딩 포함 최종 크롭 크기
+    const cropSize = Math.min(shortSide, boxSize * CROP_PADDING_RATIO);
+    const cropX = (vw - cropSize) / 2;
+    const cropY = (vh - cropSize) / 2;
+
+    // 크롭된 영역만 canvas 에 그림
+    canvas.width = cropSize;
+    canvas.height = cropSize;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    ctx.drawImage(video, 0, 0);
+    ctx.drawImage(
+      video,
+      cropX,
+      cropY,
+      cropSize,
+      cropSize,
+      0,
+      0,
+      cropSize,
+      cropSize,
+    );
 
-    // 특징점 검출 (동기, ~50-100ms on 1920x1080)
+    // 크롭된 이미지에서 특징점 검출 (박스 영역만)
     const features = detectFeatures(canvas, { max: 120 });
 
     const blob = await new Promise<Blob | null>((resolve) =>
@@ -165,14 +191,15 @@ export default function CapturePage() {
     };
     setShots((prev) => [...prev, shot]);
 
-    // 특징점 애니메이션 (800ms)
+    // 애니메이션용으로 박스 기준 좌표를 화면 좌표로 변환
+    // (feature 는 cropSize 기준 좌표, 화면에서는 박스 + 패딩 영역에 표시)
     setFlashFeatures(features);
     setFlashPhoto(url);
     setTimeout(() => {
       setFlashFeatures(null);
       setFlashPhoto(null);
     }, 800);
-  }, []);
+  }, [boxRatio]);
 
   const removeShot = useCallback((id: string) => {
     setShots((prev) => {
@@ -183,7 +210,6 @@ export default function CapturePage() {
   }, []);
 
   const proceedToTraining = useCallback(() => {
-    // 사진들을 window 에 저장 → /capture/train 에서 읽음
     const files = shots.map(
       (s, i) => new File([s.blob], `shot-${i}.jpg`, { type: 'image/jpeg' }),
     );
@@ -193,16 +219,6 @@ export default function CapturePage() {
         __capturedMeta?: unknown;
       }
     ).__capturedShots = files;
-    (
-      window as Window & {
-        __capturedShots?: File[];
-        __capturedMeta?: unknown;
-      }
-    ).__capturedMeta = {
-      count: shots.length,
-      sectorsCovered: sectorsCovered.size,
-      orientations: shots.map((s) => s.orientation),
-    };
     try {
       sessionStorage.setItem(
         'splathub:captured-meta',
@@ -222,7 +238,6 @@ export default function CapturePage() {
     }, 400);
   }, [shots, sectorsCovered, stopCamera]);
 
-  // 정리
   useEffect(() => {
     return () => {
       streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -279,8 +294,8 @@ export default function CapturePage() {
                       3D 스캔 시작
                     </h1>
                     <p className="text-sm text-base-500">
-                      대상 주변을 돌면서 <b>15장 이상</b> 촬영하세요. 각 사진에서 특징점을
-                      추출해 3D 로 재구성합니다. 삼성/애플 스캐너와 같은 원리.
+                      타겟 박스 안에 객체를 넣고 주변을 돌면서 <b>15장 이상</b>
+                      촬영하세요. 박스 영역만 추적하므로 배경 간섭이 없습니다.
                     </p>
                   </div>
                   <button
@@ -292,6 +307,7 @@ export default function CapturePage() {
                   </button>
                   <div className="mt-6 flex flex-col gap-1 text-xs text-base-400">
                     <p>🟢 비용 $0 — 사용자 GPU 에서 학습</p>
+                    <p>🟢 객체 영역만 추적 (배경 무시)</p>
                     <p>🟢 실제 측정 기반 (photogrammetry)</p>
                   </div>
                 </>
@@ -312,21 +328,20 @@ export default function CapturePage() {
                 className="h-full w-full object-cover"
               />
 
-              {/* 중앙 타겟 서클 */}
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                <div className="h-56 w-56 rounded-full border border-white/20 sm:h-72 sm:w-72" />
-              </div>
+              {/* 타겟 바운딩 박스 + 바깥 어두운 마스크 */}
+              <TargetBoxMask boxRatio={boxRatio} />
 
-              {/* 캡처 애니메이션 오버레이 */}
+              {/* 캡처 플래시 애니메이션 (박스 영역에만) */}
               {flashPhoto && flashFeatures && (
                 <FeatureFlash
                   photoUrl={flashPhoto}
                   features={flashFeatures}
+                  boxRatio={boxRatio}
                 />
               )}
 
-              {/* 상단 좌: 사진 수 + 각도 카운터 */}
-              <div className="absolute left-5 top-5 flex flex-col gap-2 rounded-md bg-black/40 px-3 py-2 text-xs text-white/90 backdrop-blur-sm">
+              {/* 상단 좌: 진행률 */}
+              <div className="absolute left-5 top-5 flex flex-col gap-2 rounded-md bg-black/50 px-3 py-2 text-xs text-white/90 backdrop-blur-sm">
                 <div className="flex items-center justify-between gap-3">
                   <span>사진</span>
                   <span className="font-mono">
@@ -353,19 +368,18 @@ export default function CapturePage() {
                 </div>
               </div>
 
-              {/* 상단 우: 센서 상태 */}
               {orientationOK === false && (
                 <div className="absolute right-5 top-5 rounded-md bg-amber-500/20 px-2 py-1.5 text-[10px] text-amber-100">
-                  자이로 센서 미지원 — 수동 회전
+                  자이로 미지원 — 수동 회전
                 </div>
               )}
 
-              {/* 하단 중앙: 3D 미니맵 (각도 구체들) */}
+              {/* 3D 미니맵 */}
               <AngleMap3D shots={shots} />
 
-              {/* 하단: 썸네일 스트립 */}
+              {/* 썸네일 스트립 */}
               {shots.length > 0 && (
-                <div className="pointer-events-auto absolute bottom-24 left-0 right-0 px-5">
+                <div className="pointer-events-auto absolute bottom-28 left-0 right-0 px-5">
                   <div className="flex gap-2 overflow-x-auto pb-1">
                     {shots.slice(-8).map((s) => (
                       <div
@@ -393,13 +407,31 @@ export default function CapturePage() {
             </>
           )}
 
-          {/* 숨김 작업 canvas */}
           <canvas ref={canvasRef} className="hidden" />
         </div>
 
-        {/* 하단 컨트롤 */}
+        {/* 하단 컨트롤 영역 */}
         {cameraActive && !done && (
-          <div className="safe-bottom border-t border-base-100 px-5 py-4 sm:px-8">
+          <div className="safe-bottom border-t border-base-100 bg-base-0 px-5 py-4 sm:px-8">
+            {/* 박스 크기 슬라이더 */}
+            <div className="mx-auto mb-3 flex max-w-md items-center gap-3">
+              <span className="text-[10px] text-base-500">작게</span>
+              <input
+                type="range"
+                min="0.3"
+                max="0.85"
+                step="0.05"
+                value={boxRatio}
+                onChange={(e) => setBoxRatio(parseFloat(e.target.value))}
+                className="flex-1 accent-accent"
+                aria-label="타겟 박스 크기"
+              />
+              <span className="text-[10px] text-base-500">크게</span>
+              <span className="w-10 font-mono text-[10px] text-base-400">
+                {Math.round(boxRatio * 100)}%
+              </span>
+            </div>
+
             <div className="flex items-center justify-center gap-4">
               <button
                 type="button"
@@ -444,45 +476,139 @@ export default function CapturePage() {
 }
 
 /**
- * 캡처 직후 특징점 애니메이션 오버레이.
- * 사진이 번쩍하면서 점들이 찍힘.
+ * 타겟 바운딩 박스 + 바깥을 어둡게 덮는 마스크.
+ * SVG 로 구현해서 화면 크기와 관계없이 깔끔하게 렌더.
+ */
+function TargetBoxMask({ boxRatio }: { boxRatio: number }) {
+  // viewBox 100x100, 중앙에 boxRatio * 60 (세로 기준 적용) 크기 정사각
+  // 세로 기준으로 박스 크기 정함 — 가로는 자동으로 맞춰짐
+  const boxSize = boxRatio * 70; // 60% 기본 크기, 70으로 스케일
+  const half = boxSize / 2;
+
+  return (
+    <svg
+      className="pointer-events-none absolute inset-0 h-full w-full"
+      viewBox="0 0 100 100"
+      preserveAspectRatio="xMidYMid slice"
+    >
+      {/* 바깥 어두운 마스크 — 박스 영역은 제외 (evenodd 로 구멍) */}
+      <path
+        d={`M 0 0 L 100 0 L 100 100 L 0 100 Z M ${50 - half} ${50 - half} L ${50 + half} ${50 - half} L ${50 + half} ${50 + half} L ${50 - half} ${50 + half} Z`}
+        fill="rgba(0, 0, 0, 0.55)"
+        fillRule="evenodd"
+      />
+      {/* 박스 테두리 */}
+      <rect
+        x={50 - half}
+        y={50 - half}
+        width={boxSize}
+        height={boxSize}
+        fill="none"
+        stroke="rgba(16, 185, 129, 0.9)"
+        strokeWidth="0.4"
+      />
+      {/* 4 코너 마커 (L 자 모양) */}
+      {[
+        [50 - half, 50 - half, 1, 1], // top-left
+        [50 + half, 50 - half, -1, 1], // top-right
+        [50 - half, 50 + half, 1, -1], // bottom-left
+        [50 + half, 50 + half, -1, -1], // bottom-right
+      ].map(([x, y, dx, dy], i) => {
+        const cornerLen = 3;
+        return (
+          <g key={i}>
+            <line
+              x1={x}
+              y1={y}
+              x2={x! + dx! * cornerLen}
+              y2={y}
+              stroke="rgba(16, 185, 129, 1)"
+              strokeWidth="0.8"
+            />
+            <line
+              x1={x}
+              y1={y}
+              x2={x}
+              y2={y! + dy! * cornerLen}
+              stroke="rgba(16, 185, 129, 1)"
+              strokeWidth="0.8"
+            />
+          </g>
+        );
+      })}
+      {/* 중앙 타겟 마커 */}
+      <line
+        x1="50"
+        y1={48}
+        x2="50"
+        y2={52}
+        stroke="rgba(16, 185, 129, 0.6)"
+        strokeWidth="0.3"
+      />
+      <line
+        x1={48}
+        y1="50"
+        x2={52}
+        y2="50"
+        stroke="rgba(16, 185, 129, 0.6)"
+        strokeWidth="0.3"
+      />
+    </svg>
+  );
+}
+
+/**
+ * 캡처 직후 특징점 애니메이션 — 박스 영역에만 표시.
  */
 function FeatureFlash({
   photoUrl,
   features,
+  boxRatio,
 }: {
   photoUrl: string;
   features: FeaturePoint[];
+  boxRatio: number;
 }) {
+  // features 좌표는 크롭된 이미지 (cropSize x cropSize) 기준.
+  // cropSize = shortSide * boxRatio * 1.2 (CROP_PADDING_RATIO)
+  // 화면 상에서 cropped 영역은 박스 + 패딩 = boxRatio * 1.2 크기
+  const displaySize = boxRatio * CROP_PADDING_RATIO * 70; // viewBox 단위
+  const displayHalf = displaySize / 2;
+
   return (
     <div className="pointer-events-none absolute inset-0 animate-flash">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={photoUrl}
-        alt=""
-        className="h-full w-full object-cover opacity-50"
-      />
-      <svg
-        className="absolute inset-0 h-full w-full"
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
+      <div
+        className="absolute"
+        style={{
+          left: `${50 - displayHalf}%`,
+          top: `${50 - displayHalf}%`,
+          width: `${displaySize}%`,
+          height: `${displaySize}%`,
+        }}
       >
-        {/* feature 좌표는 원본 해상도 기준이므로 %  로 변환 필요 — 하지만 원본 해상도 모름.
-            대신 %-based 로 렌더하려면 원본 dim 이 필요. 간단하게 features 는 이미 원본
-            좌표라 가정하고 imgRef 의 dim 으로 나눔. 여기선 video 해상도 그대로 쓰므로
-            이미지와 비율이 같음 → 간소화 불가. 대신 features 에 비율 넣자. 아래 대체. */}
-      </svg>
-      <div className="absolute inset-0">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={photoUrl}
+          alt=""
+          className="h-full w-full object-cover opacity-50"
+        />
+        {/* feature 좌표는 cropSize 기준 (0..cropSize) → 0..100% 로 */}
         {features.map((f, i) => {
-          // feature 좌표는 원본 픽셀 — overlay 는 100% 인 video 크기. 브라우저가
-          // object-cover 로 스케일링하므로 % 로 변환 필요. 대략적 근사.
+          // features.ts 에서 detectFeatures 는 원본 해상도 좌표 반환.
+          // 여기서 canvas 는 cropSize x cropSize 이므로 f.x/y 는 0..cropSize.
+          // 화면상 % 는 각 좌표 / cropSize.
+          // cropSize 를 모르므로 canvas.width 와 같다고 가정 (f 는 그 기준).
+          // 대신 f.x, f.y 의 최대값을 cropSize 로 근사.
+          // 깔끔하게: feature 의 x/y 를 max 로 나눠서 0..1 로 정규화.
+          const maxX = Math.max(...features.map((p) => p.x), 1);
+          const maxY = Math.max(...features.map((p) => p.y), 1);
           return (
             <div
               key={i}
               className="pointer-events-none absolute animate-feature-pop rounded-full"
               style={{
-                left: `${(f.x / 1920) * 100}%`,
-                top: `${(f.y / 1080) * 100}%`,
+                left: `${(f.x / maxX) * 100}%`,
+                top: `${(f.y / maxY) * 100}%`,
                 width: `${4 + f.response * 4}px`,
                 height: `${4 + f.response * 4}px`,
                 transform: 'translate(-50%, -50%)',
@@ -499,22 +625,41 @@ function FeatureFlash({
 }
 
 /**
- * 하단 중앙 3D 미니맵 — 촬영된 각도를 구체에 표시.
- * DeviceOrientation 이 있으면 실제 위치, 없으면 12구간 원으로 대체.
+ * 3D 미니맵 (하단 중앙) — 촬영된 각도를 구체에 표시.
  */
 function AngleMap3D({ shots }: { shots: Shot[] }) {
   return (
     <div className="pointer-events-none absolute bottom-4 left-1/2 h-24 w-24 -translate-x-1/2">
       <svg viewBox="0 0 100 100" className="h-full w-full">
-        {/* 구체 와이어프레임 */}
-        <circle cx="50" cy="50" r="35" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="0.5" />
-        <ellipse cx="50" cy="50" rx="35" ry="12" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="0.5" />
-        <ellipse cx="50" cy="50" rx="12" ry="35" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="0.5" />
+        <circle
+          cx="50"
+          cy="50"
+          r="35"
+          fill="rgba(0,0,0,0.3)"
+          stroke="rgba(255,255,255,0.2)"
+          strokeWidth="0.5"
+        />
+        <ellipse
+          cx="50"
+          cy="50"
+          rx="35"
+          ry="12"
+          fill="none"
+          stroke="rgba(255,255,255,0.1)"
+          strokeWidth="0.5"
+        />
+        <ellipse
+          cx="50"
+          cy="50"
+          rx="12"
+          ry="35"
+          fill="none"
+          stroke="rgba(255,255,255,0.1)"
+          strokeWidth="0.5"
+        />
 
-        {/* 각 사진의 카메라 위치 */}
         {shots.map((s, i) => {
           if (!s.orientation) return null;
-          // alpha(컴퍼스): 0~360, beta(앞뒤): -180~180
           const alphaRad = (s.orientation.alpha * Math.PI) / 180;
           const betaRad = ((s.orientation.beta - 90) * Math.PI) / 180;
 
