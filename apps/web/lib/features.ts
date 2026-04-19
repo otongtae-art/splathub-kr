@@ -165,13 +165,13 @@ function extractPeaks(
   h: number,
   maxPeaks: number,
 ): FeaturePoint[] {
-  // 먼저 임계값으로 필터 (max 응답의 5%)
+  // 먼저 임계값으로 필터 (max 응답의 10%)
   let maxR = 0;
   for (let i = 0; i < response.length; i++) {
     if (response[i]! > maxR) maxR = response[i]!;
   }
   if (maxR === 0) return [];
-  const threshold = maxR * 0.05;
+  const threshold = maxR * 0.1; // 5% → 10% 로 상향, 약한 edge 제거
 
   const candidates: { i: number; r: number }[] = [];
   for (let i = 0; i < response.length; i++) {
@@ -180,15 +180,14 @@ function extractPeaks(
     }
   }
 
-  // 응답 내림차순 정렬
   candidates.sort((a, b) => b.r - a.r);
 
-  // Non-maximum suppression: 반경 NMS_RADIUS 내에 이미 선택된 피크가 있으면 스킵
+  // Non-maximum suppression
   const selected: FeaturePoint[] = [];
   const taken = new Uint8Array(w * h);
 
   for (const c of candidates) {
-    if (selected.length >= maxPeaks) break;
+    if (selected.length >= maxPeaks * 3) break; // density filter 전 3배수 확보
     const y = Math.floor(c.i / w);
     const x = c.i % w;
 
@@ -211,7 +210,42 @@ function extractPeaks(
     });
   }
 
-  return selected;
+  // Density 필터 — 주변에 다른 특징점이 많은 점만 유지 (객체는 보통 밀집,
+  // 배경 노이즈는 흩어짐).
+  const filtered = filterByDensity(selected, w, maxPeaks);
+  return filtered;
+}
+
+/**
+ * Density-based filtering — 각 점의 K-nearest-neighbor 거리가 작은 상위만 유지.
+ * 객체 표면은 특징점이 밀집, 배경 노이즈는 흩어진다는 휴리스틱.
+ */
+function filterByDensity(
+  points: FeaturePoint[],
+  procW: number,
+  maxKeep: number,
+): FeaturePoint[] {
+  if (points.length <= maxKeep) return points;
+
+  const K = 5; // 각 점에 대해 5번째 가까운 이웃까지
+  // 각 점의 K-th nearest neighbor 거리 (작을수록 밀집)
+  const scored = points.map((p) => {
+    const dists: number[] = [];
+    for (const q of points) {
+      if (q === p) continue;
+      const dx = p.x - q.x;
+      const dy = p.y - q.y;
+      dists.push(Math.sqrt(dx * dx + dy * dy));
+    }
+    dists.sort((a, b) => a - b);
+    const kthDist = dists[K - 1] ?? 1e9;
+    // 스코어 = response / (kthDist 정규화) — 밀집 + 강한 점 우선
+    const normDist = kthDist / procW; // 0..1
+    return { p, score: p.response / (normDist + 0.05) };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, maxKeep).map((s) => s.p);
 }
 
 /**

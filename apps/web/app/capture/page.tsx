@@ -63,9 +63,10 @@ export default function CapturePage() {
   const [flashPhoto, setFlashPhoto] = useState<string | null>(null);
   const [orientationOK, setOrientationOK] = useState<boolean | null>(null);
   const [done, setDone] = useState(false);
-  // 타겟 박스 크기 비율 (화면 짧은 쪽 대비). 0.3 = 작은 물체, 0.8 = 큰 물체.
-  const [boxRatio, setBoxRatio] = useState(0.55);
+  // 타겟 박스 크기 비율. 0.3 = 작은 물체, 0.85 = 큰 물체. 기본 40%.
+  const [boxRatio, setBoxRatio] = useState(0.4);
 
+  // 자이로 기반 각도 커버
   const sectorsCovered = new Set<number>();
   shots.forEach((s) => {
     if (s.orientation) {
@@ -73,6 +74,9 @@ export default function CapturePage() {
       sectorsCovered.add(sector);
     }
   });
+  // 자이로가 없는 환경 (데스크톱 웹캠 등) 에서는 각 사진을 "수동 각도"
+  // 로 간주해 사진 수만으로 학습 조건 충족 가능하게 함.
+  const hasGyro = orientationOK === true;
 
   const startCamera = useCallback(async () => {
     try {
@@ -246,7 +250,12 @@ export default function CapturePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const canSubmit = shots.length >= MIN_SHOTS && sectorsCovered.size >= 8;
+  // 학습 버튼 활성 조건:
+  //   - 자이로 있음: 사진 15장 + 각도 8구간 (모바일 · 권장)
+  //   - 자이로 없음: 사진 15장만 (데스크톱 웹캠, 수동 회전)
+  const canSubmit = hasGyro
+    ? shots.length >= MIN_SHOTS && sectorsCovered.size >= 8
+    : shots.length >= MIN_SHOTS;
   const shotProgress = Math.min(shots.length / TARGET_SHOTS, 1);
   const sectorProgress = sectorsCovered.size / SECTORS;
 
@@ -354,23 +363,27 @@ export default function CapturePage() {
                     style={{ width: `${shotProgress * 100}%` }}
                   />
                 </div>
-                <div className="flex items-center justify-between gap-3">
-                  <span>각도</span>
-                  <span className="font-mono">
-                    {sectorsCovered.size}/{SECTORS}
-                  </span>
-                </div>
-                <div className="h-1 w-32 overflow-hidden rounded-full bg-white/10">
-                  <div
-                    className="h-full rounded-full bg-accent transition-all"
-                    style={{ width: `${sectorProgress * 100}%` }}
-                  />
-                </div>
+                {hasGyro && (
+                  <>
+                    <div className="flex items-center justify-between gap-3">
+                      <span>각도</span>
+                      <span className="font-mono">
+                        {sectorsCovered.size}/{SECTORS}
+                      </span>
+                    </div>
+                    <div className="h-1 w-32 overflow-hidden rounded-full bg-white/10">
+                      <div
+                        className="h-full rounded-full bg-accent transition-all"
+                        style={{ width: `${sectorProgress * 100}%` }}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
 
               {orientationOK === false && (
-                <div className="absolute right-5 top-5 rounded-md bg-amber-500/20 px-2 py-1.5 text-[10px] text-amber-100">
-                  자이로 미지원 — 수동 회전
+                <div className="absolute right-5 top-5 rounded-md bg-amber-500/20 px-3 py-1.5 text-[10px] text-amber-100">
+                  💻 PC 모드 — 카메라/대상을 직접 움직여 각도 바꿔주세요
                 </div>
               )}
 
@@ -418,7 +431,7 @@ export default function CapturePage() {
               <span className="text-[10px] text-base-500">작게</span>
               <input
                 type="range"
-                min="0.3"
+                min="0.25"
                 max="0.85"
                 step="0.05"
                 value={boxRatio}
@@ -428,9 +441,12 @@ export default function CapturePage() {
               />
               <span className="text-[10px] text-base-500">크게</span>
               <span className="w-10 font-mono text-[10px] text-base-400">
-                {Math.round(boxRatio * 100)}%
+                박스 {Math.round(boxRatio * 100)}%
               </span>
             </div>
+            <p className="mx-auto mb-3 max-w-md text-center text-[11px] text-base-400">
+              박스가 <b>객체로 꽉 차게</b> 맞춰주세요 (배경이 적을수록 품질 좋음)
+            </p>
 
             <div className="flex items-center justify-center gap-4">
               <button
@@ -463,9 +479,14 @@ export default function CapturePage() {
               <p className="mt-2 text-center text-xs text-base-400">
                 {shots.length < MIN_SHOTS
                   ? `사진 ${MIN_SHOTS - shots.length}장 더 필요`
-                  : sectorsCovered.size < 8
+                  : hasGyro && sectorsCovered.size < 8
                     ? `각도 ${8 - sectorsCovered.size}개 더 채워주세요`
                     : null}
+              </p>
+            )}
+            {canSubmit && (
+              <p className="mt-2 text-center text-xs text-accent">
+                ✓ 학습 가능 · {shots.length}장 확보됨
               </p>
             )}
           </div>
