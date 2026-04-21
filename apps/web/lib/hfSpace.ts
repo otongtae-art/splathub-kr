@@ -178,6 +178,80 @@ async function tryModalFallback(
 }
 
 /**
+ * 여러 장 사진 → VGGT photogrammetry → .glb.
+ *
+ * Meta VGGT (CVPR 2025 Best Paper) 를 우리 HF Space wrapper 를 통해 호출.
+ * 브라우저 → HF Space 직접 (CORS OK, Vercel 60s timeout 우회).
+ * 10장 사진 ~30초, 20장 ~40초. 비용 $0 (ZeroGPU 무료 티어).
+ */
+export async function callVggt(
+  images: File[],
+  options: {
+    onProgress?: ProgressCb;
+  } = {},
+): Promise<HfSpaceResult> {
+  const { onProgress } = options;
+
+  if (images.length < 2) {
+    throw new Error('VGGT 는 최소 2장의 사진이 필요합니다');
+  }
+  if (images.length > 30) {
+    throw new Error(`최대 30장까지. 현재 ${images.length}장.`);
+  }
+
+  onProgress?.(0.05, `VGGT 호출 (${images.length}장)`);
+
+  const fd = new FormData();
+  for (const img of images) {
+    fd.append('images', img);
+  }
+
+  // VGGT 는 시간이 좀 걸리므로 fake progress 타이머
+  const startTs = Date.now();
+  const timer = setInterval(() => {
+    const elapsed = Date.now() - startTs;
+    const p = Math.min(0.85, 0.1 + (1 - Math.exp(-elapsed / 15000)) * 0.75);
+    let label = '사진 업로드 중';
+    if (elapsed < 5000) label = '사진 업로드 중';
+    else if (elapsed < 15000) label = 'VGGT 분석 중 (카메라 포즈 추정)';
+    else if (elapsed < 35000) label = 'VGGT 재구성 중 (pointcloud 생성)';
+    else label = 'GLB 패키징 중';
+    onProgress?.(p, label);
+  }, 1000);
+
+  try {
+    // VGGT 는 HF Space 에서 본문이 클 수 있음 — /api/vggt 는 우리 HF Space 의
+    // FastAPI 엔드포인트. CORS 열려있어 브라우저가 직접 호출 가능.
+    const vggtUrl = HF_SPACE_URL.replace('/api/convert', '/api/vggt');
+    const res = await fetch(vggtUrl, {
+      method: 'POST',
+      body: fd,
+    });
+
+    if (!res.ok) {
+      let msg = `VGGT status_${res.status}`;
+      try {
+        const ej = await res.json();
+        if (ej?.detail?.error) msg = ej.detail.error;
+        else if (ej?.message) msg = ej.message;
+      } catch {}
+      throw new Error(msg);
+    }
+
+    const buf = await res.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    onProgress?.(1, '완료');
+    console.info(
+      `[hfSpace] VGGT success: ${bytes.byteLength} bytes (${images.length} images)`,
+    );
+    return { bytes, fileType: 'glb', backend: 'hf-space' };
+  } finally {
+    clearInterval(timer);
+  }
+}
+
+
+/**
  * 단일 이미지 → 3D GLB. 객체 분할 전처리 + 1순위 HF Space / 2순위 Modal fallback.
  */
 export async function callHfSpace(

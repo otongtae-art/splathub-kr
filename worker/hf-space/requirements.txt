@@ -1,15 +1,13 @@
-# Docker SDK + Python 3.11 — 호환성 이슈 없이 단순 proxy.
-# huggingface_hub 은 0.26.x 대로 핀 — gradio 4.44.1 이 HfFolder 를 import 하는데
-# huggingface_hub 0.30+ 에서 제거됨. 0.26.5 가 HfFolder 있는 마지막 안정 버전.
-gradio==4.44.1
-gradio_client==1.3.0
-huggingface_hub==0.26.5
-fastapi==0.115.6
-uvicorn==0.32.1
-python-multipart==0.0.17
+# Docker SDK + Python 3.11.
+# gradio 5.x 는 HfFolder 의존성 제거 + Gradio 5 REST API 지원.
+# gradio_client 도 함께 현대화되어 facebook/vggt (Gradio 5) 호출 가능.
+gradio>=5.5.0,<6
+gradio_client>=1.5.0
+fastapi>=0.115
+uvicorn>=0.32
+python-multipart>=0.0.17
 
-# 배경 제거 파이프라인 — microsoft/TRELLIS 의 내장 U2Net(2020) 대신 최신
-# BiRefNet(2024) 으로 대체하기 위함. rembg 가 onnxruntime 을 사용.
+# 배경 제거 파이프라인
 rembg==2.0.61
 Pillow==10.4.0
 onnxruntime==1.19.2

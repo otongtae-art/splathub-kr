@@ -1,24 +1,29 @@
-"""SplatHub → TRELLIS Thin Proxy Space with BiRefNet preprocessing.
+"""SplatHub → 3D Generation Thin Proxy Space.
 
-우리 Vercel Next.js 앱에서 직접 호출할 수 있는 REST 엔드포인트를 노출.
-microsoft/TRELLIS 를 호출하기 전에 BiRefNet 으로 배경을 깔끔하게 제거해서
-TRELLIS 내부의 구식 U2Net(2020) 으로 인한 halo/blob 문제를 우회한다.
+우리 웹 앱에서 직접 호출할 수 있는 REST 엔드포인트를 노출하는 얇은 프록시.
+두 가지 품질 경로를 제공:
 
-파이프라인:
-  1. rembg + BiRefNet-general (2024, MIT) → RGBA PNG with clean alpha
-  2. microsoft/TRELLIS 호출 — alpha 를 감지해 내장 U2Net 스킵 → 깨끗한 재구성
+파이프라인 A (generative, 1장, 빠름):
+  1. rembg + BiRefNet-general (2024, MIT) → RGBA PNG
+  2. microsoft/TRELLIS.2 호출 (2026-01, MIT) → 1장의 상상 3D
+  엔드포인트: POST /api/convert
 
-엔드포인트:
-  POST /api/convert    multipart form { image: File } → model/gltf-binary
-  GET  /api/health     { status: "ok", target: "microsoft/TRELLIS" }
-  GET  /                Gradio UI (테스트용)
+파이프라인 B (photogrammetry, N장, 실측 기반):
+  1. facebook/vggt 호출 (CVPR 2025 Best Paper, Meta, 10장 ~30초)
+  2. N장의 사진 + 카메라 포즈 → pointcloud GLB
+  엔드포인트: POST /api/vggt
 
-환경변수 (HF Space Settings → Variables):
-  HF_TOKEN    필수. microsoft/TRELLIS 를 ZeroGPU 우선순위로 호출.
+공통 엔드포인트:
+  GET  /api/health     { status, targets }
+  GET  /                Gradio UI
 
-사전학습 모델 (직접 학습 X, 추론만):
-  - briaai/BiRefNet (배경 제거, MIT) — rembg 를 통해 로드
-  - microsoft/TRELLIS (이미지→3D, MIT) — gradio_client 로 호출
+환경변수:
+  HF_TOKEN    microsoft/TRELLIS.2, facebook/vggt 에 ZeroGPU 우선순위.
+
+라이선스:
+  - briaai/BiRefNet (MIT) — 배경 제거
+  - microsoft/TRELLIS.2 (MIT) — 1장 → 3D
+  - facebook/vggt (CC-BY-NC 또는 VGGT-1B-Commercial) — N장 → 3D
 """
 
 from __future__ import annotations
@@ -52,18 +57,44 @@ TRELLIS_SPACE_ID = os.environ.get("TRELLIS_SPACE_ID", "microsoft/TRELLIS.2")
 # 품질/속도 트레이드오프. "1024" 가 기본, "1536" 이면 최고 품질 (~2배 느림).
 TRELLIS_RESOLUTION = os.environ.get("TRELLIS_RESOLUTION", "1024")
 
+# VGGT (Meta, CVPR 2025 Best Paper) — 여러 장 → 실측 기반 3D (photogrammetry).
+# 현재 공식 Space 그대로 사용. 향후 VGGT-1B-Commercial 로 upgrade 가능.
+VGGT_SPACE_ID = os.environ.get("VGGT_SPACE_ID", "facebook/vggt")
 
-# ─── TRELLIS 클라이언트 연결 (lazy) ────────────────────────────────────
+
+# ─── TRELLIS / VGGT 클라이언트 연결 (lazy) ────────────────────────────
 
 _trellis_client: Client | None = None
+_vggt_client: Client | None = None
+
+
+def _connect_client(space_id: str) -> Client:
+    """gradio_client 는 버전에 따라 hf_token / token 키워드가 다름.
+    Gradio 5.x Space 를 호출하려면 최신 gradio_client (1.10+) 필요하고,
+    그 경우 kwarg 는 `token`. 구버전(1.3.x)은 `hf_token`.
+    """
+    if not HF_TOKEN:
+        return Client(space_id)
+    try:
+        return Client(space_id, token=HF_TOKEN)
+    except TypeError:
+        return Client(space_id, hf_token=HF_TOKEN)
+
+
+def get_vggt() -> Client:
+    """facebook/vggt Space 에 연결. 여러 장 사진 → 3D 재구성."""
+    global _vggt_client
+    if _vggt_client is None:
+        logger.info("connecting to %s", VGGT_SPACE_ID)
+        _vggt_client = _connect_client(VGGT_SPACE_ID)
+    return _vggt_client
 
 
 def get_trellis() -> Client:
     global _trellis_client
     if _trellis_client is None:
         logger.info("connecting to %s", TRELLIS_SPACE_ID)
-        # gradio_client 1.3.0 은 `hf_token` 키워드 사용 (최신 버전은 `token`).
-        _trellis_client = Client(TRELLIS_SPACE_ID, hf_token=HF_TOKEN)
+        _trellis_client = _connect_client(TRELLIS_SPACE_ID)
     return _trellis_client
 
 
@@ -226,6 +257,62 @@ def convert_image_to_glb(image_path: str) -> str:
     return glb_path
 
 
+# ─── VGGT photogrammetry 파이프라인 ────────────────────────────────────
+
+
+def convert_images_to_glb_vggt(image_paths: list[str]) -> str:
+    """여러 장 사진 → VGGT photogrammetry → .glb.
+
+    VGGT (Meta, CVPR 2025) 는 N장의 unposed 사진을 받아 카메라 포즈 + 3D
+    pointcloud 를 한 번의 forward pass 로 추정. 10장 ~30초 on H200.
+
+    반환: .glb 파일 경로 (pointcloud + 카메라 위치 표시)
+    """
+    if len(image_paths) < 2:
+        raise ValueError("VGGT 는 최소 2장의 사진이 필요합니다")
+
+    client = get_vggt()
+    logger.info("[vggt 1/2] uploading %d images", len(image_paths))
+    upload_result = client.predict(
+        input_video=None,
+        input_images=[handle_file(p) for p in image_paths],
+        api_name="/update_gallery_on_upload",
+    )
+    # upload_result = (None, target_dir, gallery_preview, message)
+    if not isinstance(upload_result, (list, tuple)) or len(upload_result) < 2:
+        raise RuntimeError(f"unexpected upload result: {upload_result}")
+    target_dir = upload_result[1]
+    if not target_dir:
+        raise RuntimeError("VGGT upload did not return target_dir")
+    logger.info("  target_dir=%s", target_dir)
+
+    logger.info("[vggt 2/2] reconstructing...")
+    recon_result = client.predict(
+        target_dir=target_dir,
+        conf_thres=50,
+        frame_filter="All",
+        mask_black_bg=False,
+        mask_white_bg=False,
+        show_cam=False,  # 카메라 표시 끄기 (깨끗한 pointcloud 만)
+        mask_sky=False,
+        prediction_mode="Depthmap and Camera Branch",
+        api_name="/gradio_demo",
+    )
+    # recon_result = (glb_filepath, log_markdown, show_points_dropdown)
+    if not isinstance(recon_result, (list, tuple)) or len(recon_result) < 1:
+        raise RuntimeError(f"unexpected recon result: {recon_result}")
+    glb_path = recon_result[0]
+    if not glb_path or not os.path.exists(glb_path):
+        raise RuntimeError(f"VGGT did not produce a valid GLB: {glb_path}")
+
+    logger.info(
+        "[vggt done] glb_path=%s, size=%d bytes",
+        glb_path,
+        os.path.getsize(glb_path),
+    )
+    return glb_path
+
+
 # ─── FastAPI 앱 ────────────────────────────────────────────────────────
 
 api = FastAPI(title="SplatHub TRELLIS Proxy")
@@ -241,7 +328,80 @@ api.add_middleware(
 
 @api.get("/api/health")
 def health():
-    return {"status": "ok", "target": TRELLIS_SPACE_ID, "has_token": bool(HF_TOKEN)}
+    return {
+        "status": "ok",
+        "targets": {
+            "trellis": TRELLIS_SPACE_ID,
+            "vggt": VGGT_SPACE_ID,
+        },
+        "has_token": bool(HF_TOKEN),
+    }
+
+
+@api.post("/api/vggt")
+async def vggt_endpoint(images: list[UploadFile] = File(...)):
+    """여러 장 사진 → VGGT photogrammetry → .glb 바이너리.
+
+    입력: multipart/form-data 의 `images` 필드 (2~30장 권장)
+    출력: model/gltf-binary (pointcloud + camera poses)
+
+    예:
+      curl -X POST .../api/vggt -F "images=@a.jpg" -F "images=@b.jpg" -F "images=@c.jpg"
+    """
+    if len(images) < 2:
+        raise HTTPException(
+            status_code=400,
+            detail="VGGT 는 최소 2장의 사진이 필요합니다",
+        )
+    if len(images) > 30:
+        raise HTTPException(
+            status_code=400,
+            detail=f"최대 30장까지 지원. 현재 {len(images)}장",
+        )
+
+    # 업로드 파일들을 임시 디렉토리에 저장
+    tmpdir = tempfile.mkdtemp(prefix="vggt_")
+    tmp_paths: list[str] = []
+    try:
+        for idx, upload in enumerate(images):
+            suffix = Path(upload.filename or f"img_{idx}.jpg").suffix or ".jpg"
+            path = os.path.join(tmpdir, f"img_{idx}{suffix}")
+            with open(path, "wb") as f:
+                f.write(await upload.read())
+            tmp_paths.append(path)
+
+        glb_path = convert_images_to_glb_vggt(tmp_paths)
+        with open(glb_path, "rb") as f:
+            glb_bytes = f.read()
+        return Response(
+            content=glb_bytes,
+            media_type="model/gltf-binary",
+            headers={
+                "X-Backend": "vggt",
+                "X-Image-Count": str(len(images)),
+                "X-Size": str(len(glb_bytes)),
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        tb = traceback.format_exc()
+        logger.error("VGGT failed: %s\n%s", e, tb)
+        raise HTTPException(
+            status_code=502,
+            detail={"error": str(e), "trace": tb[:2000]},
+        )
+    finally:
+        # 임시 파일 정리
+        for p in tmp_paths:
+            try:
+                os.unlink(p)
+            except Exception:
+                pass
+        try:
+            os.rmdir(tmpdir)
+        except Exception:
+            pass
 
 
 @api.post("/api/convert")
@@ -293,7 +453,7 @@ demo = gr.Interface(
         "- REST: `POST /api/convert` (multipart: `image`) → model/gltf-binary\n"
         "- Health: `GET /api/health`"
     ),
-    allow_flagging="never",
+    flagging_mode="never",
 )
 
 
