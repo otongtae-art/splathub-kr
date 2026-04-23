@@ -143,7 +143,11 @@ export default function CapturePage() {
   }, []);
 
   /**
-   * 셔터: 전체 프레임 → 박스 영역 크롭 → 특징점 검출 (박스 내부만) → 저장.
+   * 셔터: 전체 프레임 저장 + 박스 영역 특징점 검출.
+   *
+   * 중요: 이미지는 **크롭하지 않음**. VGGT photogrammetry 는 배경/맥락을
+   * 사용해 카메라 위치를 추정하므로 전체 프레임 필요. 박스는 사용자가
+   * 객체를 프레이밍하는 가이드일 뿐 크롭하지 않음.
    */
   const captureShot = useCallback(async () => {
     const video = videoRef.current;
@@ -154,33 +158,40 @@ export default function CapturePage() {
     const vh = video.videoHeight;
     if (!vw || !vh) return;
 
-    // 박스 크기 계산 — 정사각, 짧은 변 기준
+    // 전체 프레임을 canvas 에 그림 (크롭 X)
+    canvas.width = vw;
+    canvas.height = vh;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0);
+
+    // 특징점은 박스 영역에서 검출 (시각 피드백용)
+    // — 저장되는 이미지는 전체 프레임, 검출만 박스 영역
     const shortSide = Math.min(vw, vh);
     const boxSize = shortSide * boxRatio;
-    // 여유 패딩 포함 최종 크롭 크기
     const cropSize = Math.min(shortSide, boxSize * CROP_PADDING_RATIO);
     const cropX = (vw - cropSize) / 2;
     const cropY = (vh - cropSize) / 2;
 
-    // 크롭된 영역만 canvas 에 그림
-    canvas.width = cropSize;
-    canvas.height = cropSize;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.drawImage(
-      video,
-      cropX,
-      cropY,
-      cropSize,
-      cropSize,
-      0,
-      0,
-      cropSize,
-      cropSize,
-    );
-
-    // 크롭된 이미지에서 특징점 검출 (박스 영역만)
-    const features = detectFeatures(canvas, { max: 120 });
+    // feature 검출용 임시 canvas
+    const featureCanvas = document.createElement('canvas');
+    featureCanvas.width = cropSize;
+    featureCanvas.height = cropSize;
+    const fctx = featureCanvas.getContext('2d');
+    if (fctx) {
+      fctx.drawImage(
+        video,
+        cropX,
+        cropY,
+        cropSize,
+        cropSize,
+        0,
+        0,
+        cropSize,
+        cropSize,
+      );
+    }
+    const features = fctx ? detectFeatures(featureCanvas, { max: 120 }) : [];
 
     const blob = await new Promise<Blob | null>((resolve) =>
       canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.92),
@@ -304,8 +315,8 @@ export default function CapturePage() {
                       3D 스캔 시작
                     </h1>
                     <p className="text-sm text-base-500">
-                      타겟 박스 안에 객체를 넣고 주변을 돌면서 <b>15장 이상</b>
-                      촬영하세요. 박스 영역만 추적하므로 배경 간섭이 없습니다.
+                      <b>객체는 그대로 두고, 네가 주변을 한 바퀴 돌면서</b> 15장 이상
+                      촬영하세요. 각도마다 다른 사진이 필요합니다.
                     </p>
                   </div>
                   <button
@@ -315,10 +326,17 @@ export default function CapturePage() {
                   >
                     카메라 시작
                   </button>
-                  <div className="mt-6 flex flex-col gap-1 text-xs text-base-400">
-                    <p>🟢 비용 $0 — 사용자 GPU 에서 학습</p>
-                    <p>🟢 객체 영역만 추적 (배경 무시)</p>
-                    <p>🟢 실제 측정 기반 (photogrammetry)</p>
+                  <div className="mt-6 flex max-w-md flex-col gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/[0.04] p-4 text-left text-xs text-amber-700 dark:text-amber-400">
+                    <p className="font-medium">⚠️ 중요: 물체를 회전시키면 실패합니다</p>
+                    <p className="text-base-500">
+                      photogrammetry 는 <b>카메라가 공간을 이동</b>한 정보로 3D 를
+                      계산합니다. 물체를 돌리면 VGGT 는 카메라가 정지한 걸로 인식해
+                      평면 이미지만 복원합니다.
+                    </p>
+                  </div>
+                  <div className="mt-2 flex flex-col gap-1 text-xs text-base-400">
+                    <p>🟢 비용 $0 — Meta VGGT (CVPR 2025) 사용</p>
+                    <p>🟢 실측 기반 (photogrammetry, AI 환각 없음)</p>
                   </div>
                 </>
               )}

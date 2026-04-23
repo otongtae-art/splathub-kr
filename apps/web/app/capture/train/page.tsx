@@ -243,6 +243,40 @@ export default function CaptureTrainPage() {
         />
       </section>
 
+      {/* 카메라 움직임 검증 — 자이로 데이터로 판정 */}
+      {stage === 'ready' && meta?.orientations && (() => {
+        const alphas = meta.orientations
+          .filter((o): o is { alpha: number; beta: number; gamma: number } => o !== null)
+          .map((o) => o.alpha);
+        if (alphas.length < 3) return null; // 자이로 없음 (데스크톱)
+        const range = Math.max(...alphas) - Math.min(...alphas);
+        // 60도 미만 = 카메라가 거의 안 움직임
+        if (range < 60) {
+          return (
+            <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/[0.05] p-4 text-sm animate-fade-in">
+              <Warning size={16} weight="regular" className="mt-0.5 flex-shrink-0 text-amber-500" />
+              <div className="flex flex-col gap-1">
+                <p className="font-medium text-amber-700 dark:text-amber-400">
+                  카메라가 충분히 움직이지 않았습니다 (각도 범위 {range.toFixed(0)}°)
+                </p>
+                <p className="text-xs text-base-500">
+                  photogrammetry 는 <b>카메라가 공간에서 실제로 이동한 다양한 각도</b>를
+                  비교해서 3D 를 계산합니다. 물체를 회전시켰거나 한 자리에서만 찍으면
+                  VGGT 가 평면 이미지만 만들어냅니다. 다시 촬영해 주세요 (최소 120° 이상 권장).
+                </p>
+                <Link
+                  href="/capture"
+                  className="mt-1 inline-block text-xs text-amber-700 underline hover:text-amber-900 dark:text-amber-400"
+                >
+                  다시 촬영하기 →
+                </Link>
+              </div>
+            </div>
+          );
+        }
+        return null;
+      })()}
+
       {/* 메인 액션 */}
       {stage === 'ready' && (
         <section className="flex flex-col gap-4 rounded-md border border-base-200 bg-base-50 p-6 animate-fade-in">
@@ -258,6 +292,10 @@ export default function CaptureTrainPage() {
             <li>• 예상 소요: {shots.length}장 기준 약 {Math.max(20, shots.length * 2)}~{shots.length * 3}초</li>
             <li>• 비용: $0 (Meta 공식 HF Space, ZeroGPU 무료 티어)</li>
           </ul>
+          <div className="rounded-md bg-base-100/50 p-3 text-[11px] text-base-500">
+            💡 <b>좋은 결과의 조건</b>: 물체는 가만히 두고 카메라가 주변 한 바퀴 이동,
+            각 사진마다 20~30° 다른 각도, 충분한 조명, 배경에 질감 있으면 더 좋음.
+          </div>
           <button
             type="button"
             onClick={startTraining}
