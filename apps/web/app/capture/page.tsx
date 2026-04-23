@@ -26,8 +26,10 @@ import {
   X,
 } from '@phosphor-icons/react/dist/ssr';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { saveCaptures } from '@/lib/captureStore';
 import { detectFeatures, type FeaturePoint } from '@/lib/features';
 
 const TARGET_SHOTS = 20;
@@ -47,6 +49,7 @@ type Shot = {
 };
 
 export default function CapturePage() {
+  const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -213,34 +216,32 @@ export default function CapturePage() {
     });
   }, []);
 
-  const proceedToTraining = useCallback(() => {
+  const proceedToTraining = useCallback(async () => {
     const files = shots.map(
       (s, i) => new File([s.blob], `shot-${i}.jpg`, { type: 'image/jpeg' }),
     );
-    (
-      window as Window & {
-        __capturedShots?: File[];
-        __capturedMeta?: unknown;
-      }
-    ).__capturedShots = files;
-    try {
-      sessionStorage.setItem(
-        'splathub:captured-meta',
-        JSON.stringify({
-          count: shots.length,
-          sectorsCovered: sectorsCovered.size,
-          timestamp: Date.now(),
-        }),
-      );
-    } catch {
-      /* ignore */
-    }
+
     stopCamera();
     setDone(true);
-    setTimeout(() => {
-      window.location.href = '/capture/train';
-    }, 400);
-  }, [shots, sectorsCovered, stopCamera]);
+
+    try {
+      // IndexedDB 에 File[] + 메타 저장 — 새로고침해도 살아남음
+      const sessionId = await saveCaptures(files, {
+        sectorsCovered: sectorsCovered.size,
+        orientations: shots.map((s) => s.orientation),
+      });
+      console.info(`[capture] saved session ${sessionId} (${files.length} files)`);
+    } catch (err) {
+      console.error('[capture] saveCaptures failed:', err);
+      // IndexedDB 실패 시 window 로 fallback
+      (
+        window as Window & { __capturedShots?: File[] }
+      ).__capturedShots = files;
+    }
+
+    // Next.js client-side navigation — window 상태 보존
+    router.push('/capture/train');
+  }, [shots, sectorsCovered, stopCamera, router]);
 
   useEffect(() => {
     return () => {

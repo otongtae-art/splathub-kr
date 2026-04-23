@@ -25,26 +25,25 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 
+import {
+  getLatestSessionId,
+  loadCaptures,
+  type CaptureMeta,
+} from '@/lib/captureStore';
 import { callVggt } from '@/lib/hfSpace';
 
 const MeshViewer = dynamic(() => import('@/components/viewer/MeshViewer'), {
   ssr: false,
 });
 
-type Meta = {
-  count: number;
-  sectorsCovered: number;
-  timestamp: number;
-};
-
-type Stage = 'ready' | 'training' | 'done' | 'error';
+type Stage = 'loading' | 'ready' | 'training' | 'done' | 'error';
 
 const BRUSH_DEMO_URL = 'https://splats.arthurbrussee.com/';
 
 export default function CaptureTrainPage() {
-  const [meta, setMeta] = useState<Meta | null>(null);
+  const [meta, setMeta] = useState<CaptureMeta | null>(null);
   const [shots, setShots] = useState<File[] | null>(null);
-  const [stage, setStage] = useState<Stage>('ready');
+  const [stage, setStage] = useState<Stage>('loading');
   const [progress, setProgress] = useState<{ frac: number; label: string }>({
     frac: 0,
     label: '',
@@ -54,15 +53,49 @@ export default function CaptureTrainPage() {
   const thumbnailGridRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem('splathub:captured-meta');
-      if (raw) setMeta(JSON.parse(raw));
-    } catch {
-      /* ignore */
-    }
-    const files = (window as Window & { __capturedShots?: File[] })
-      .__capturedShots;
-    if (files && files.length > 0) setShots(files);
+    let cancelled = false;
+
+    (async () => {
+      // 1) IndexedDB 에서 최신 세션 로드 시도
+      const sessionId = getLatestSessionId();
+      if (sessionId) {
+        try {
+          const data = await loadCaptures(sessionId);
+          if (data && !cancelled) {
+            setShots(data.files);
+            setMeta(data.meta);
+            setStage('ready');
+            console.info(
+              `[train] loaded ${data.files.length} files from IndexedDB (${sessionId})`,
+            );
+            return;
+          }
+        } catch (err) {
+          console.warn('[train] IndexedDB load failed:', err);
+        }
+      }
+
+      // 2) fallback: window 변수 (이전 방식, SPA 내에서만 동작)
+      const files = (window as Window & { __capturedShots?: File[] })
+        .__capturedShots;
+      if (files && files.length > 0 && !cancelled) {
+        setShots(files);
+        setMeta({ count: files.length, timestamp: Date.now() });
+        setStage('ready');
+        console.info(`[train] fallback: loaded ${files.length} files from window`);
+        return;
+      }
+
+      // 3) 둘 다 실패 → error
+      if (!cancelled) {
+        setStage('error');
+        setError('촬영 데이터를 찾을 수 없습니다. 다시 촬영해주세요.');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -96,7 +129,8 @@ export default function CaptureTrainPage() {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('[train] VGGT failed', err);
       setError(msg);
-      setStage('error');
+      setStage('ready'); // 다시 시도 가능
+      setProgress({ frac: 0, label: '' });
     }
   };
 
@@ -110,7 +144,18 @@ export default function CaptureTrainPage() {
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
 
-  if (!shots) {
+  // IndexedDB 에서 로딩 중
+  if (stage === 'loading') {
+    return (
+      <main className="mx-auto flex min-h-[100dvh] max-w-xl flex-col items-center justify-center gap-4 px-6 text-center">
+        <div className="h-8 w-8 animate-pulse rounded-full bg-accent/30" />
+        <p className="text-sm text-base-500">촬영 데이터 불러오는 중...</p>
+      </main>
+    );
+  }
+
+  // 로딩 실패 (IndexedDB 에 데이터 없음)
+  if (!shots || stage === 'error') {
     return (
       <main className="mx-auto flex min-h-[100dvh] max-w-xl flex-col items-center justify-center gap-4 px-6 text-center">
         <Warning size={36} weight="regular" className="text-amber-500" />
@@ -118,13 +163,13 @@ export default function CaptureTrainPage() {
           촬영 데이터를 찾을 수 없습니다
         </h1>
         <p className="text-sm text-base-500">
-          브라우저를 새로고침하면 사진이 사라집니다. 다시 촬영해주세요.
+          {error || '이전 촬영 데이터가 없거나 만료되었습니다. 새로 촬영해주세요.'}
         </p>
         <Link
           href="/capture"
           className="tactile mt-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-base-0"
         >
-          다시 촬영하기
+          촬영 시작
         </Link>
       </main>
     );
@@ -244,24 +289,17 @@ export default function CaptureTrainPage() {
         </section>
       )}
 
-      {/* 에러 */}
-      {stage === 'error' && (
-        <section className="flex flex-col gap-3 rounded-md border border-danger/40 bg-danger/[0.04] p-5 animate-fade-in">
+      {/* VGGT 실패 시 에러 메시지 (stage 는 ready 로 복귀해 다시 시도 가능) */}
+      {stage === 'ready' && error && (
+        <section className="flex flex-col gap-2 rounded-md border border-danger/40 bg-danger/[0.04] p-4 text-sm animate-fade-in">
           <div className="flex items-center gap-2">
-            <Warning size={16} weight="regular" className="text-danger" />
-            <h2 className="text-sm font-medium text-danger">학습 실패</h2>
+            <Warning size={14} weight="regular" className="text-danger" />
+            <span className="font-medium text-danger">이전 학습 실패</span>
           </div>
           <p className="text-xs text-base-500 break-all">{error}</p>
-          <button
-            type="button"
-            onClick={() => {
-              setStage('ready');
-              setError(null);
-            }}
-            className="tactile self-start rounded-md border border-base-200 bg-base-50 px-3 py-1.5 text-sm text-base-700"
-          >
-            다시 시도
-          </button>
+          <p className="text-[11px] text-base-400">
+            서버 쿼터 소진 가능성 — 다시 시도하거나 잠시 후 재시도해주세요.
+          </p>
         </section>
       )}
 
