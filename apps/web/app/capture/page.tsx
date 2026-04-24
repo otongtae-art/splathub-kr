@@ -32,10 +32,16 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { saveCaptures } from '@/lib/captureStore';
 import { detectFeatures, type FeaturePoint } from '@/lib/features';
 
-const TARGET_SHOTS = 20;
-const MIN_SHOTS = 15;
-const SECTORS = 12;
+// UX 기준 상향 (2026-04-21 리서치 기반):
+//   - Polycam 최소 20장, Apple Object Capture 20-30장
+//   - 학술 논문: 9-12° 각도 간격 = 최적, 24°+ 는 실패 구간
+//   - 기존 30° 간격(12섹터) 은 실패 구간이었음 → 10° 간격(36섹터) 으로 변경
+const TARGET_SHOTS = 30;
+const MIN_SHOTS = 20;
+const SECTORS = 36;
 const SECTOR_ANGLE = 360 / SECTORS;
+// 학습 조건 — 자이로 있으면 최소 18섹터(180°) 커버, 없으면 사진 수만
+const MIN_SECTORS_WITH_GYRO = 18;
 // 캡처 시 박스 + 이만큼 패딩 비율 (1.2 = 20% 여유)
 const CROP_PADDING_RATIO = 1.2;
 
@@ -263,10 +269,10 @@ export default function CapturePage() {
   }, []);
 
   // 학습 버튼 활성 조건:
-  //   - 자이로 있음: 사진 15장 + 각도 8구간 (모바일 · 권장)
-  //   - 자이로 없음: 사진 15장만 (데스크톱 웹캠, 수동 회전)
+  //   - 자이로 있음: 사진 20장 + 각도 18구간(180° 커버, 10° 간격)
+  //   - 자이로 없음: 사진 20장만 (데스크톱 웹캠, 수동 회전)
   const canSubmit = hasGyro
-    ? shots.length >= MIN_SHOTS && sectorsCovered.size >= 8
+    ? shots.length >= MIN_SHOTS && sectorsCovered.size >= MIN_SECTORS_WITH_GYRO
     : shots.length >= MIN_SHOTS;
   const shotProgress = Math.min(shots.length / TARGET_SHOTS, 1);
   const sectorProgress = sectorsCovered.size / SECTORS;
@@ -315,8 +321,8 @@ export default function CapturePage() {
                       3D 스캔 시작
                     </h1>
                     <p className="text-sm text-base-500">
-                      <b>객체는 그대로 두고, 네가 주변을 한 바퀴 돌면서</b> 15장 이상
-                      촬영하세요. 각도마다 다른 사진이 필요합니다.
+                      <b>물체를 들지도, 돌리지도 마세요.</b> 카메라를 들고 물체 주변을
+                      천천히 한 바퀴 걸으면서 <b>20장 이상</b> 촬영하세요.
                     </p>
                   </div>
                   <button
@@ -326,17 +332,37 @@ export default function CapturePage() {
                   >
                     카메라 시작
                   </button>
-                  <div className="mt-6 flex max-w-md flex-col gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/[0.04] p-4 text-left text-xs text-amber-700 dark:text-amber-400">
-                    <p className="font-medium">⚠️ 중요: 물체를 회전시키면 실패합니다</p>
-                    <p className="text-base-500">
-                      photogrammetry 는 <b>카메라가 공간을 이동</b>한 정보로 3D 를
-                      계산합니다. 물체를 돌리면 VGGT 는 카메라가 정지한 걸로 인식해
-                      평면 이미지만 복원합니다.
-                    </p>
+
+                  {/* 올바른 촬영 vs 잘못된 촬영 시각적 비교 */}
+                  <div className="mt-4 grid max-w-md grid-cols-2 gap-3 text-left text-xs">
+                    <div className="rounded-md border border-accent/30 bg-accent/[0.04] p-3">
+                      <p className="mb-1 font-medium text-accent">✓ 올바른 방법</p>
+                      <p className="text-base-600 leading-relaxed">
+                        물체를 탁자에 두고
+                        <b> 내가 주변을 걷는다</b>.
+                        매 걸음마다 촬영.
+                      </p>
+                    </div>
+                    <div className="rounded-md border border-danger/40 bg-danger/[0.04] p-3">
+                      <p className="mb-1 font-medium text-danger">✗ 잘못된 방법</p>
+                      <p className="text-base-600 leading-relaxed">
+                        제자리에 서서
+                        <b> 물체를 돌린다</b>.
+                        결과가 평면으로 나옴.
+                      </p>
+                    </div>
                   </div>
-                  <div className="mt-2 flex flex-col gap-1 text-xs text-base-400">
-                    <p>🟢 비용 $0 — Meta VGGT (CVPR 2025) 사용</p>
-                    <p>🟢 실측 기반 (photogrammetry, AI 환각 없음)</p>
+
+                  <div className="mt-2 max-w-md rounded-md border border-amber-500/30 bg-amber-500/[0.04] p-3 text-left text-[11px] text-base-500">
+                    <b className="text-amber-700 dark:text-amber-400">왜 이게 중요한가:</b>
+                    {' '}photogrammetry (삼성/애플과 같은 방식) 는 카메라가 공간에서
+                    <b> 실제로 이동한 거리</b> 를 삼각측량해 3D 를 계산합니다. 물체만
+                    돌리면 카메라가 정지한 걸로 인식 → 평면 레이어만 생성.
+                  </div>
+
+                  <div className="mt-1 flex flex-col gap-1 text-xs text-base-400">
+                    <p>🟢 비용 $0 · Meta VGGT + Poisson mesh</p>
+                    <p>🟢 실측 기반 (AI 환각 없음)</p>
                   </div>
                 </>
               )}
@@ -495,17 +521,27 @@ export default function CapturePage() {
               </button>
             </div>
             {!canSubmit && shots.length > 0 && (
-              <p className="mt-2 text-center text-xs text-base-400">
-                {shots.length < MIN_SHOTS
-                  ? `사진 ${MIN_SHOTS - shots.length}장 더 필요`
-                  : hasGyro && sectorsCovered.size < 8
-                    ? `각도 ${8 - sectorsCovered.size}개 더 채워주세요`
-                    : null}
-              </p>
+              <div className="mt-2 flex flex-col items-center gap-1">
+                <p className="text-center text-xs text-base-400">
+                  {shots.length < MIN_SHOTS
+                    ? `사진 ${MIN_SHOTS - shots.length}장 더 필요 (${shots.length}/${MIN_SHOTS})`
+                    : hasGyro && sectorsCovered.size < MIN_SECTORS_WITH_GYRO
+                      ? `각도 ${MIN_SECTORS_WITH_GYRO - sectorsCovered.size}개 더 (${sectorsCovered.size}/${MIN_SECTORS_WITH_GYRO})`
+                      : null}
+                </p>
+                {/* 카메라 이동 경고: 섹터 커버 vs 사진 수 비율 낮으면 rotate suspect */}
+                {hasGyro &&
+                  shots.length >= 5 &&
+                  sectorsCovered.size / shots.length < 0.3 && (
+                    <p className="text-center text-[11px] text-danger">
+                      ⚠️ 카메라가 충분히 이동 중이 아닙니다 — 물체 주변을 직접 걸어주세요
+                    </p>
+                  )}
+              </div>
             )}
             {canSubmit && (
               <p className="mt-2 text-center text-xs text-accent">
-                ✓ 학습 가능 · {shots.length}장 확보됨
+                ✓ 학습 가능 · {shots.length}장, {hasGyro ? `${sectorsCovered.size}/${SECTORS} 각도` : 'PC 모드'}
               </p>
             )}
           </div>

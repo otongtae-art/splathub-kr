@@ -260,13 +260,115 @@ def convert_image_to_glb(image_path: str) -> str:
 # ─── VGGT photogrammetry 파이프라인 ────────────────────────────────────
 
 
+def convert_pointcloud_to_mesh(glb_in: str) -> str:
+    """VGGT pointcloud GLB → Poisson 표면 mesh GLB.
+
+    VGGT output 은 pointcloud 라 viewer 에서 "부유 점" 으로 보임.
+    Poisson surface reconstruction 으로 연속 mesh 로 변환 → 진짜 3D 인식 가능.
+
+    Open3D 는 CPU 에서 ~5-10초, 50만 포인트 기준.
+    실패 시 원본 pointcloud GLB 를 반환 (graceful fallback).
+    """
+    try:
+        import numpy as np
+        import open3d as o3d
+        import trimesh
+
+        logger.info("[poisson] loading GLB %s", os.path.basename(glb_in))
+        scene = trimesh.load(glb_in)
+
+        # trimesh 는 pointcloud 를 'vertices' 만 있는 mesh 또는 PointCloud 로 로드.
+        # VGGT output 은 대부분 PointCloud.
+        if hasattr(scene, "geometry"):
+            # Scene → 가장 큰 geometry 추출
+            geoms = list(scene.geometry.values())
+            if not geoms:
+                raise RuntimeError("no geometry in scene")
+            pc = geoms[0]
+        else:
+            pc = scene
+
+        # vertices + optional colors
+        if hasattr(pc, "vertices"):
+            pts = np.asarray(pc.vertices)
+        elif hasattr(pc, "points"):
+            pts = np.asarray(pc.points)
+        else:
+            raise RuntimeError(f"cannot extract points from {type(pc).__name__}")
+
+        colors = None
+        if hasattr(pc, "colors") and pc.colors is not None:
+            c = np.asarray(pc.colors)
+            if c.ndim == 2 and c.shape[1] >= 3:
+                colors = c[:, :3].astype(np.float64)
+                if colors.max() > 1.0:
+                    colors /= 255.0
+        elif hasattr(pc, "visual") and hasattr(pc.visual, "vertex_colors"):
+            c = np.asarray(pc.visual.vertex_colors)
+            if c.ndim == 2 and c.shape[1] >= 3:
+                colors = c[:, :3].astype(np.float64) / 255.0
+
+        logger.info("[poisson] %d points, colors=%s", len(pts), colors is not None)
+
+        if len(pts) < 1000:
+            logger.warning("[poisson] too few points, skipping")
+            return glb_in
+
+        # Open3D pointcloud
+        o3d_pc = o3d.geometry.PointCloud()
+        o3d_pc.points = o3d.utility.Vector3dVector(pts)
+        if colors is not None:
+            o3d_pc.colors = o3d.utility.Vector3dVector(colors)
+
+        # 노말 추정 (Poisson 필수)
+        o3d_pc.estimate_normals(
+            search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30)
+        )
+        o3d_pc.orient_normals_consistent_tangent_plane(k=15)
+
+        # Poisson surface reconstruction (depth=9 가 적당한 해상도/속도 균형)
+        logger.info("[poisson] running Poisson reconstruction (depth=9)")
+        mesh, densities = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(
+            o3d_pc, depth=9, width=0, scale=1.1, linear_fit=False
+        )
+
+        # 낮은 density vertex 제거 (Poisson 이 채운 가짜 영역)
+        densities = np.asarray(densities)
+        threshold = np.quantile(densities, 0.05)  # 하위 5% 제거
+        mesh.remove_vertices_by_mask(densities < threshold)
+
+        logger.info(
+            "[poisson] mesh: %d vertices, %d triangles",
+            len(mesh.vertices),
+            len(mesh.triangles),
+        )
+
+        # trimesh 로 export (GLB)
+        tri_mesh = trimesh.Trimesh(
+            vertices=np.asarray(mesh.vertices),
+            faces=np.asarray(mesh.triangles),
+            vertex_colors=(np.asarray(mesh.vertex_colors) * 255).astype(np.uint8)
+            if len(mesh.vertex_colors) > 0
+            else None,
+        )
+        out_path = glb_in.rsplit(".", 1)[0] + "_mesh.glb"
+        tri_mesh.export(out_path)
+        logger.info("[poisson] saved %s (%d bytes)", out_path, os.path.getsize(out_path))
+        return out_path
+
+    except Exception as e:
+        logger.warning("[poisson] failed (%s), returning pointcloud", e)
+        return glb_in
+
+
 def convert_images_to_glb_vggt(image_paths: list[str]) -> str:
-    """여러 장 사진 → VGGT photogrammetry → .glb.
+    """여러 장 사진 → VGGT photogrammetry → Poisson mesh → .glb.
 
     VGGT (Meta, CVPR 2025) 는 N장의 unposed 사진을 받아 카메라 포즈 + 3D
     pointcloud 를 한 번의 forward pass 로 추정. 10장 ~30초 on H200.
+    이후 Poisson reconstruction 으로 pointcloud → 연속 mesh 변환 (~5-10초).
 
-    반환: .glb 파일 경로 (pointcloud + 카메라 위치 표시)
+    반환: .glb 파일 경로 (mesh, 또는 Poisson 실패 시 pointcloud)
     """
     if len(image_paths) < 2:
         raise ValueError("VGGT 는 최소 2장의 사진이 필요합니다")
@@ -306,11 +408,14 @@ def convert_images_to_glb_vggt(image_paths: list[str]) -> str:
         raise RuntimeError(f"VGGT did not produce a valid GLB: {glb_path}")
 
     logger.info(
-        "[vggt done] glb_path=%s, size=%d bytes",
+        "[vggt done] pointcloud glb_path=%s, size=%d bytes",
         glb_path,
         os.path.getsize(glb_path),
     )
-    return glb_path
+
+    # Pointcloud → Poisson surface mesh 변환
+    mesh_path = convert_pointcloud_to_mesh(glb_path)
+    return mesh_path
 
 
 # ─── FastAPI 앱 ────────────────────────────────────────────────────────

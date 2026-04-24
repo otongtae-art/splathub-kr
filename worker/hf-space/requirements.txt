@@ -11,3 +11,9 @@ python-multipart>=0.0.17
 rembg==2.0.61
 Pillow==10.4.0
 onnxruntime==1.19.2
+
+# VGGT pointcloud → Poisson mesh 변환 (CPU only, 5-10초)
+# open3d 는 HF Space 용량 큼 (~200MB) 이지만 surface reconstruction 필수
+open3d>=0.18.0
+trimesh>=4.3.0
+numpy>=1.26
