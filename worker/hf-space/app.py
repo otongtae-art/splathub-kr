@@ -81,13 +81,39 @@ def _connect_client(space_id: str) -> Client:
         return Client(space_id, hf_token=HF_TOKEN)
 
 
+_vggt_client_anon: Client | None = None
+
+
 def get_vggt() -> Client:
-    """facebook/vggt Space 에 연결. 여러 장 사진 → 3D 재구성."""
+    """facebook/vggt Space 에 연결 (authenticated, 우리 쿼터)."""
     global _vggt_client
     if _vggt_client is None:
-        logger.info("connecting to %s", VGGT_SPACE_ID)
+        logger.info("connecting to %s (authed)", VGGT_SPACE_ID)
         _vggt_client = _connect_client(VGGT_SPACE_ID)
     return _vggt_client
+
+
+def get_vggt_anon() -> Client:
+    """VGGT 익명 클라이언트 — 쿼터 소진 시 fallback.
+    HF Space 컨테이너 IP 풀은 Vercel 과 독립이라 익명 쿼터가 별개로 관리됨."""
+    global _vggt_client_anon
+    if _vggt_client_anon is None:
+        logger.info("connecting to %s (anonymous fallback)", VGGT_SPACE_ID)
+        _vggt_client_anon = Client(VGGT_SPACE_ID)
+    return _vggt_client_anon
+
+
+def _is_quota_exceeded(exc: Exception) -> bool:
+    msg = str(exc)
+    return any(
+        kw in msg
+        for kw in [
+            "exceeded your free GPU quota",
+            "No GPU was available",
+            "ZeroGPU quota",
+            "out of daily",
+        ]
+    )
 
 
 def get_trellis() -> Client:
@@ -386,50 +412,53 @@ def convert_images_to_glb_vggt(image_paths: list[str]) -> str:
     if len(image_paths) < 2:
         raise ValueError("VGGT 는 최소 2장의 사진이 필요합니다")
 
-    client = get_vggt()
-    logger.info("[vggt 1/2] uploading %d images", len(image_paths))
-    upload_result = client.predict(
-        input_video=None,
-        input_images=[handle_file(p) for p in image_paths],
-        api_name="/update_gallery_on_upload",
-    )
-    # upload_result = (None, target_dir, gallery_preview, message)
-    if not isinstance(upload_result, (list, tuple)) or len(upload_result) < 2:
-        raise RuntimeError(f"unexpected upload result: {upload_result}")
-    target_dir = upload_result[1]
-    if not target_dir:
-        raise RuntimeError("VGGT upload did not return target_dir")
-    logger.info("  target_dir=%s", target_dir)
+    def _run(client: Client) -> str:
+        logger.info("[vggt 1/2] uploading %d images", len(image_paths))
+        upload_result = client.predict(
+            input_video=None,
+            input_images=[handle_file(p) for p in image_paths],
+            api_name="/update_gallery_on_upload",
+        )
+        if not isinstance(upload_result, (list, tuple)) or len(upload_result) < 2:
+            raise RuntimeError(f"unexpected upload result: {upload_result}")
+        target_dir = upload_result[1]
+        if not target_dir:
+            raise RuntimeError("VGGT upload did not return target_dir")
+        logger.info("  target_dir=%s", target_dir)
 
-    logger.info("[vggt 2/2] reconstructing...")
-    recon_result = client.predict(
-        target_dir=target_dir,
-        conf_thres=50,
-        frame_filter="All",
-        mask_black_bg=False,
-        mask_white_bg=False,
-        show_cam=False,  # 카메라 표시 끄기 (깨끗한 pointcloud 만)
-        mask_sky=False,
-        prediction_mode="Depthmap and Camera Branch",
-        api_name="/gradio_demo",
-    )
-    # recon_result = (glb_filepath, log_markdown, show_points_dropdown)
-    if not isinstance(recon_result, (list, tuple)) or len(recon_result) < 1:
-        raise RuntimeError(f"unexpected recon result: {recon_result}")
-    glb_path = recon_result[0]
-    if not glb_path or not os.path.exists(glb_path):
-        raise RuntimeError(f"VGGT did not produce a valid GLB: {glb_path}")
+        logger.info("[vggt 2/2] reconstructing...")
+        recon_result = client.predict(
+            target_dir=target_dir,
+            conf_thres=50,
+            frame_filter="All",
+            mask_black_bg=False,
+            mask_white_bg=False,
+            show_cam=False,
+            mask_sky=False,
+            prediction_mode="Depthmap and Camera Branch",
+            api_name="/gradio_demo",
+        )
+        if not isinstance(recon_result, (list, tuple)) or len(recon_result) < 1:
+            raise RuntimeError(f"unexpected recon result: {recon_result}")
+        glb_path = recon_result[0]
+        if not glb_path or not os.path.exists(glb_path):
+            raise RuntimeError(f"VGGT did not produce a valid GLB: {glb_path}")
 
-    logger.info(
-        "[vggt done] pointcloud glb_path=%s, size=%d bytes",
-        glb_path,
-        os.path.getsize(glb_path),
-    )
+        logger.info(
+            "[vggt done] glb_path=%s, size=%d bytes",
+            glb_path,
+            os.path.getsize(glb_path),
+        )
+        return glb_path
 
-    # Poisson mesh 는 30초+ 걸려 ZeroGPU 120초 한도 위험.
-    # 대신 viewer 에서 pointcloud 를 큰 점으로 렌더 → 부유 점 문제 시각적 해결.
-    # 선택적 Poisson 은 ?poisson=true 쿼리 파라미터로 추후 제공 가능.
-    return glb_path
+    # authenticated → quota 소진 시 anonymous fallback
+    try:
+        return _run(get_vggt())
+    except Exception as e:
+        if _is_quota_exceeded(e):
+            logger.warning("[vggt] quota exceeded, trying anonymous fallback")
+            return _run(get_vggt_anon())
+        raise
 
 
 # ─── FastAPI 앱 ────────────────────────────────────────────────────────
