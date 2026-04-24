@@ -1,27 +1,38 @@
-# 자율 개선 루프 현황 요약
+# 자율 개선 루프 현황
 
-**Start**: 2026-04-21 (KST)  
-**Round**: 0 (초기)  
-**Current quality**: "monster" output (VGGT 결과가 평면 layer)  
-**Last commit**: (아직 새 라운드 없음)
+**Start**: 2026-04-21 (KST)
+**Round**: 1 (완료, 배포 중)
+**Current deployed commit**: a1f5477
 
-## 현재 스택 (2026-04-21 기준)
+## 🎯 Round 1 구현된 것
+1. **Poisson surface reconstruction** (worker/hf-space/app.py)
+   - VGGT pointcloud → open3d Poisson mesh
+   - CPU ~5-10초, density 하위 5% 제거
+   - 시각적 "부유 점" 문제 해결
 
-### 품질 경로
-| 경로 | 상태 | 비용 | 품질 |
-|---|---|---|---|
-| TRELLIS.2 (1장 생성) | 배포됨 | $0 | ⭐⭐ |
-| VGGT (N장 photogrammetry) | 배포됨, 품질 이슈 | $0 | ⭐⭐ (목표: ⭐⭐⭐⭐) |
-| Brush WebGPU (외부 데모) | 링크됨 | $0 | ⭐⭐⭐⭐ |
+2. **UX 기준 상향** (apps/web/app/capture/page.tsx)
+   - MIN_SHOTS 15 → 20
+   - SECTORS 12(30°) → 36(10°)
+   - MIN_SECTORS_WITH_GYRO 18 (180° 커버)
 
-### 핵심 블로커
-1. VGGT 가 평면 layer 만 생성 — 원인 진단 중
-2. 사용자 UX 가 "카메라 이동" 요구사항을 제대로 전달 못 함
-3. 전체 프레임 전송 수정 배포 완료 (2026-04-21 afb1e07)
+3. **카피 강화**
+   - "물체를 들지도, 돌리지도 마세요"
+   - 올바른/잘못된 방법 2-card 비교
+   - 촬영 중 실시간 "카메라 이동 부족" 경고
 
-## 목표
+## 📋 Round 2 예정 (Translation 감지)
+- [ ] Optical flow 기반 rotate vs translate 구분
+- [ ] DeviceMotion 가속도 integration 으로 실제 걸음 거리 계산
+- [ ] VGGT-X HF Space 배포 검토
 
-최종 품질: 사용자가 "이거 내 물건 맞네" 라고 할 만한 3D
-- 환각 없음 (실측 기반)
-- 30초~2분 안에 결과
-- 비용 $0 유지
+## 📈 품질 경로
+| 경로 | 상태 | 비용 |
+|---|---|---|
+| VGGT + Poisson mesh | 🟡 배포 중 | $0 |
+| TRELLIS.2 | ✅ | $0 |
+| Brush WebGPU | ✅ | $0 |
+
+## 🚧 블로커 / 남은 과제
+- VGGT-X 가 pointcloud→splat 품질 대폭 향상 (2025-09)
+- AR 지면 링 (WebXR) 이 rotate-vs-translate 근본 해결
+- 모바일에서 실시간 optical flow 계산 비용 검증 필요
