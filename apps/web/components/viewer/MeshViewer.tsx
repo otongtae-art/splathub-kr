@@ -73,6 +73,37 @@ export default function MeshViewer({
       if (disposed) return;
       const model = gltf.scene;
 
+      // VGGT pointcloud GLB 감지 → 큰 점 크기로 렌더 (Three.js PointsMaterial)
+      // VGGT 는 GLB 에 points primitive 로 저장. 기본 렌더는 점이 너무 작아
+      // 뷰어에서 드문드문 점처럼 보임. Pointmaterial size 를 키우면 surface
+      // 처럼 보임 — Poisson mesh 없이 시각적 품질 개선.
+      let pointsCount = 0;
+      model.traverse((child: THREE.Object3D) => {
+        if ((child as THREE.Points).isPoints) {
+          const points = child as THREE.Points;
+          pointsCount += (points.geometry.attributes.position?.count ?? 0);
+          // PointsMaterial 교체 — 점 size 키움, 거리별 축소 활성
+          const oldMat = points.material as THREE.PointsMaterial;
+          const newMat = new THREE.PointsMaterial({
+            size: 0.008, // 객체 크기 ~1m 기준 8mm 점 (surface 처럼)
+            vertexColors: !!(oldMat.vertexColors ?? true),
+            sizeAttenuation: true, // 거리 비례 축소
+          });
+          // 기존 재질에서 color/map 복사
+          if (oldMat.map) newMat.map = oldMat.map;
+          if (!newMat.vertexColors && oldMat.color) {
+            newMat.color.copy(oldMat.color);
+          }
+          points.material = newMat;
+          oldMat.dispose();
+        }
+      });
+      if (pointsCount > 0) {
+        console.info(
+          `[MeshViewer] VGGT pointcloud detected: ${pointsCount} points, size boosted`,
+        );
+      }
+
       // 자동 fit: bounding box 기준 카메라 거리 조정
       const box = new THREE.Box3().setFromObject(model);
       const size = box.getSize(new THREE.Vector3());

@@ -50,6 +50,8 @@ type Shot = {
   blob: Blob;
   previewUrl: string;
   orientation: { alpha: number; beta: number; gamma: number } | null;
+  /** 직전 촬영 이후 누적 이동량 추정치 (작으면 카메라 정지). */
+  motionSinceLast: number;
   features: FeaturePoint[];
   timestamp: number;
 };
@@ -64,6 +66,10 @@ export default function CapturePage() {
     beta: number;
     gamma: number;
   } | null>(null);
+  // Translation 감지: 가속도 integration 으로 누적 이동 거리 추정.
+  // 완벽하진 않지만 "정지 vs 이동" 판별엔 충분.
+  const motionAccumRef = useRef<number>(0);
+  const lastMotionTickRef = useRef<number>(0);
 
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -141,6 +147,37 @@ export default function CapturePage() {
     return () => window.removeEventListener('deviceorientation', handler);
   }, [cameraActive]);
 
+  // DeviceMotion: 가속도 → 누적 이동량 (translation 감지)
+  // 진짜 이동 거리는 double integration 이라 오차 크지만
+  // "정지 vs 움직임" 판별엔 충분히 robust.
+  useEffect(() => {
+    if (!cameraActive) return;
+    if (typeof window === 'undefined') return;
+
+    const handler = (ev: DeviceMotionEvent) => {
+      const acc = ev.accelerationIncludingGravity;
+      if (!acc) return;
+      const now = Date.now();
+      const dt = lastMotionTickRef.current
+        ? (now - lastMotionTickRef.current) / 1000
+        : 0;
+      lastMotionTickRef.current = now;
+
+      // 중력 제거 (대략적). 정지 시 sqrt(x²+y²+z²) ≈ 9.8
+      const mag = Math.sqrt(
+        (acc.x ?? 0) ** 2 + (acc.y ?? 0) ** 2 + (acc.z ?? 0) ** 2,
+      );
+      const linear = Math.abs(mag - 9.8);
+      // 작은 노이즈 임계값
+      if (linear > 0.3 && dt < 0.5) {
+        motionAccumRef.current += linear * dt;
+      }
+    };
+
+    window.addEventListener('devicemotion', handler);
+    return () => window.removeEventListener('devicemotion', handler);
+  }, [cameraActive]);
+
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
@@ -205,11 +242,14 @@ export default function CapturePage() {
     if (!blob) return;
 
     const url = URL.createObjectURL(blob);
+    const motion = motionAccumRef.current;
+    motionAccumRef.current = 0; // 리셋
     const shot: Shot = {
       id: `shot-${Date.now()}`,
       blob,
       previewUrl: url,
       orientation: currentOrientationRef.current,
+      motionSinceLast: motion,
       features,
       timestamp: Date.now(),
     };

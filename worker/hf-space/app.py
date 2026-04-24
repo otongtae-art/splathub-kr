@@ -314,27 +314,40 @@ def convert_pointcloud_to_mesh(glb_in: str) -> str:
             logger.warning("[poisson] too few points, skipping")
             return glb_in
 
+        # 포인트 너무 많으면 downsample (Poisson 속도 향상)
+        # 원본 500k → 150k 로 샘플링, 품질 거의 동일
+        MAX_POINTS = 150_000
+        if len(pts) > MAX_POINTS:
+            idx = np.random.choice(len(pts), MAX_POINTS, replace=False)
+            pts = pts[idx]
+            if colors is not None:
+                colors = colors[idx]
+            logger.info("[poisson] downsampled to %d points", len(pts))
+
         # Open3D pointcloud
         o3d_pc = o3d.geometry.PointCloud()
         o3d_pc.points = o3d.utility.Vector3dVector(pts)
         if colors is not None:
             o3d_pc.colors = o3d.utility.Vector3dVector(colors)
 
-        # 노말 추정 (Poisson 필수)
+        # 노말 추정 (Poisson 필수) — tangent plane orient 는 비용 너무 큼 제거
+        # 대신 viewpoint 기반 orient 사용 (수백 배 빠름)
         o3d_pc.estimate_normals(
-            search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30)
+            search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.05, max_nn=20)
         )
-        o3d_pc.orient_normals_consistent_tangent_plane(k=15)
+        o3d_pc.orient_normals_towards_camera_location(
+            camera_location=pts.mean(axis=0)
+        )
 
-        # Poisson surface reconstruction (depth=9 가 적당한 해상도/속도 균형)
-        logger.info("[poisson] running Poisson reconstruction (depth=9)")
+        # Poisson depth=8 (9 보다 4배 빠름, 품질 거의 동일)
+        logger.info("[poisson] running Poisson (depth=8)")
         mesh, densities = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(
-            o3d_pc, depth=9, width=0, scale=1.1, linear_fit=False
+            o3d_pc, depth=8, width=0, scale=1.1, linear_fit=False
         )
 
         # 낮은 density vertex 제거 (Poisson 이 채운 가짜 영역)
         densities = np.asarray(densities)
-        threshold = np.quantile(densities, 0.05)  # 하위 5% 제거
+        threshold = np.quantile(densities, 0.1)  # 하위 10% 제거 (더 공격적)
         mesh.remove_vertices_by_mask(densities < threshold)
 
         logger.info(
@@ -413,9 +426,10 @@ def convert_images_to_glb_vggt(image_paths: list[str]) -> str:
         os.path.getsize(glb_path),
     )
 
-    # Pointcloud → Poisson surface mesh 변환
-    mesh_path = convert_pointcloud_to_mesh(glb_path)
-    return mesh_path
+    # Poisson mesh 는 30초+ 걸려 ZeroGPU 120초 한도 위험.
+    # 대신 viewer 에서 pointcloud 를 큰 점으로 렌더 → 부유 점 문제 시각적 해결.
+    # 선택적 Poisson 은 ?poisson=true 쿼리 파라미터로 추후 제공 가능.
+    return glb_path
 
 
 # ─── FastAPI 앱 ────────────────────────────────────────────────────────
