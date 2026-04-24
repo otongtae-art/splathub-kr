@@ -178,6 +178,39 @@ async function tryModalFallback(
 }
 
 /**
+ * 브라우저 Canvas 로 이미지를 maxPx 이하로 리사이즈.
+ * 1920×1080 → 800×450: 파일 크기 ~10× 감소.
+ * VGGT 는 내부적으로 저해상도로 처리하므로 품질 손실 없음.
+ */
+async function resizeImageForVggt(file: File, maxPx = 800): Promise<File> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+      if (scale >= 1) { resolve(file); return; }
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) { resolve(file); return; }
+          resolve(new File([blob], file.name, { type: 'image/jpeg' }));
+        },
+        'image/jpeg',
+        0.85,
+      );
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+
+/**
  * 여러 장 사진 → VGGT photogrammetry → .glb.
  *
  * Meta VGGT (CVPR 2025 Best Paper) 를 우리 HF Space wrapper 를 통해 호출.
@@ -199,10 +232,20 @@ export async function callVggt(
     throw new Error(`최대 30장까지. 현재 ${images.length}장.`);
   }
 
-  onProgress?.(0.05, `VGGT 호출 (${images.length}장)`);
+  onProgress?.(0.05, `이미지 최적화 중 (${images.length}장)`);
+
+  // 1920×1080 → max 800px 리사이즈: 업로드 ~10× 감소, ZeroGPU 시간 절약.
+  const resized = await Promise.all(images.map((img) => resizeImageForVggt(img, 800)));
+  const origMB = images.reduce((s, f) => s + f.size, 0) / 1024 / 1024;
+  const resizedMB = resized.reduce((s, f) => s + f.size, 0) / 1024 / 1024;
+  console.info(
+    `[vggt] resized: ${origMB.toFixed(1)}MB → ${resizedMB.toFixed(1)}MB (${images.length}장)`,
+  );
+
+  onProgress?.(0.08, `VGGT 호출 (${images.length}장)`);
 
   const fd = new FormData();
-  for (const img of images) {
+  for (const img of resized) {
     fd.append('images', img);
   }
 
