@@ -29,7 +29,11 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { saveCaptures } from '@/lib/captureStore';
+import {
+  getLatestSessionId,
+  loadCaptures,
+  saveCaptures,
+} from '@/lib/captureStore';
 import { detectFeatures, type FeaturePoint } from '@/lib/features';
 import {
   disableShutterSound,
@@ -119,6 +123,13 @@ export default function CapturePage() {
   const [manualBurst, setManualBurst] = useState(false);
   // round 22 — 셔터 사운드 (iOS 등 Vibration 미지원 환경 보완)
   const [shutterAudio, setShutterAudio] = useState(false);
+  // round 28 — IndexedDB 에 남은 이전 세션 (브라우저 닫고 돌아온 경우 이어가기)
+  const [pastSession, setPastSession] = useState<{
+    id: string;
+    count: number;
+    minutesAgo: number;
+  } | null>(null);
+  const [pastSessionDismissed, setPastSessionDismissed] = useState(false);
   // round 15+16 — 카메라 시작 직후 환경 사전 체크 (밝기 + feature density)
   const [envCheck, setEnvCheck] = useState<{
     state: 'pending' | 'ready';
@@ -250,6 +261,33 @@ export default function CapturePage() {
     }, 200);
     return () => window.clearInterval(id);
   }, [cameraActive]);
+
+  // round 28 — 이전 세션 감지 (mount 시 1회만, 카메라 시작 전)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const sid = getLatestSessionId();
+        if (!sid) return;
+        const data = await loadCaptures(sid);
+        if (!data || cancelled) return;
+        if (data.files.length === 0) return;
+        const ageMin = (Date.now() - (data.meta.timestamp ?? Date.now())) / 60000;
+        // 24시간 이내만 유의미
+        if (ageMin > 24 * 60) return;
+        setPastSession({
+          id: sid,
+          count: data.files.length,
+          minutesAgo: Math.max(1, Math.round(ageMin)),
+        });
+      } catch {
+        /* IDB 차단 환경 무시 */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // round 15+16 — 카메라 시작 직후 환경 사전 체크 (밝기 + feature density)
   // 어두움 (R15) + textureless wall (R16) 동시 검출.
@@ -732,6 +770,35 @@ export default function CapturePage() {
                     <p>🟢 비용 $0 · Meta VGGT + Poisson mesh</p>
                     <p>🟢 실측 기반 (AI 환각 없음)</p>
                   </div>
+
+                  {/* round 28: 이전 세션 이어가기 (24h 내, dismissible) */}
+                  {pastSession && !pastSessionDismissed && (
+                    <div className="mt-3 flex max-w-md items-start gap-2 rounded-md border border-accent/30 bg-accent/[0.05] p-3 text-left text-xs animate-fade-in">
+                      <span className="text-accent">📂</span>
+                      <div className="flex flex-1 flex-col gap-0.5">
+                        <p className="font-medium text-base-900">
+                          이전 세션 발견 · {pastSession.count}장
+                        </p>
+                        <p className="text-[11px] text-base-500">
+                          {pastSession.minutesAgo}분 전 촬영. 학습 페이지로 이어가시겠어요?
+                        </p>
+                      </div>
+                      <Link
+                        href="/capture/train"
+                        className="tactile rounded bg-accent px-2 py-1 text-[11px] font-medium text-base-0 transition-colors hover:bg-accent-bright"
+                      >
+                        이어가기
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => setPastSessionDismissed(true)}
+                        aria-label="닫기"
+                        className="tactile text-[10px] text-base-400 hover:text-base-700"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
                 </>
               )}
             </div>

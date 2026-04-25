@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 27 (배포 중)
-**Current deployed commit**: cf52747 (+round 27 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
+**Round**: 28 (배포 중)
+**Current deployed commit**: 728258b (+round 28 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -209,10 +209,17 @@
     - dismissible (✕)
     - **사용자 'now what?' 의문 해결 — 다운로드 → 활용 안내**
 
-## 📋 Round 28 예정
+## 🎯 Round 28 구현된 것 (Vercel 자동배포)
+29. **이전 세션 이어가기 banner** (`apps/web/app/capture/page.tsx`)
+    - mount 시 IDB 24h 내 세션 자동 감지
+    - 카메라 시작 전 화면에 "📂 이전 세션 발견 · N장 / X분 전. [이어가기]" 배너
+    - dismissible (✕)
+    - **브라우저 닫고 돌아온 사용자 노력 낭비 방지**
+
+## 📋 Round 29 예정
 - [ ] VGGT 통계 확장 패널
 - [ ] 토글 트랜지션
-- [ ] 이전 세션 결과 보기 (IndexedDB)
+- [ ] 이전 세션 banner 미리보기 thumbnail
 - [ ] HF Space env 활성화 도구
 
 ## 📈 품질 경로
