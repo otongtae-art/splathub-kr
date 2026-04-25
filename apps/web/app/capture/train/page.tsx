@@ -150,12 +150,28 @@ export default function CaptureTrainPage() {
     }
   };
 
-  // round 19: TRELLIS.2 (1장 generative) 폴백 — VGGT monster 시 세션 구제
+  // round 19+20: TRELLIS.2 (1장 generative) 폴백 — VGGT monster 시 세션 구제
+  // round 20: meta.sharpnessScores 가 있으면 가장 sharp 한 shot 선택,
+  // 없으면 (구버전 호환) 첫 번째 사진 사용.
   const tryTrellisFallback = async () => {
     if (!shots || shots.length === 0) return;
-    // 첫 사진 사용 — train 페이지는 sharpness 정보 없으므로 단순 첫 번째.
-    // (capture 시 sharpness 기록 후 train 으로 넘기면 best 선택 가능 — future work)
-    const photo = shots[0];
+    let photo: File | undefined = shots[0];
+    const scores = meta?.sharpnessScores;
+    if (scores && scores.length === shots.length) {
+      let bestIdx = 0;
+      let bestScore = -1;
+      for (let i = 0; i < scores.length; i++) {
+        const s = scores[i] ?? 0;
+        if (s > bestScore) {
+          bestScore = s;
+          bestIdx = i;
+        }
+      }
+      photo = shots[bestIdx];
+      console.info(
+        `[train] TRELLIS fallback: picked shot[${bestIdx}] (sharpness=${bestScore.toFixed(0)} of ${scores.length} scores)`,
+      );
+    }
     if (!photo) return;
     setTrellisState('loading');
     setTrellisError(null);

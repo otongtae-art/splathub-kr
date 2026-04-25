@@ -580,6 +580,8 @@ export default function CapturePage() {
           sectorsCovered: sectorsCovered.size,
           orientations: kept.map((s) => s.orientation),
           droppedBlurry: droppedSet.size,
+          // round 20: sharpness 점수 — train 의 TRELLIS 폴백이 best shot 선택용
+          sharpnessScores: kept.map((s) => s.sharpness),
         },
         droppedFiles.length > 0 ? droppedFiles : undefined,
       );

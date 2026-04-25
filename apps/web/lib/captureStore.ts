@@ -26,6 +26,8 @@ export type CaptureMeta = {
   orientations?: Array<{ alpha: number; beta: number; gamma: number } | null>;
   /** sharpness 필터로 자동 제외된 흐림 사진 수 (round 7+) */
   droppedBlurry?: number;
+  /** 각 kept file 의 sharpness 점수 (files 와 같은 순서). round 20+ */
+  sharpnessScores?: number[];
   timestamp: number;
 };
 
