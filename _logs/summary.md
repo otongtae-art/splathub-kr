@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 34 (배포 중)
-**Current deployed commit**: 6567d2f (+round 34 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
+**Round**: 35 (배포 중)
+**Current deployed commit**: 94f7eeb (+round 35 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -256,10 +256,18 @@
     - 1회성 트리거 (한 번 발사 후 토글 자동 OFF)
     - **R9 auto-capture + R34 = 진정한 hands-free (시작 토글 + 걷기 만)**
 
-## 📋 Round 35 예정
-- [ ] 자동 학습 시 햅틱 진동
+## 🎯 Round 35 구현된 것 (Vercel 자동배포)
+36. **MeshViewer ErrorBoundary** (`apps/web/components/ErrorBoundary.tsx` 신규, `app/capture/train/page.tsx`)
+    - Generic React class component (getDerivedStateFromError + componentDidCatch)
+    - train 페이지 viewer 감싸 Three.js/WebGL 크래시 시 white-screen 방지
+    - Fallback: "3D 뷰어 오류 / Chrome 134+ 권장 / [.glb 다운로드만] [새로고침]"
+    - **사용자가 뷰어 못 봐도 결과 잃지 않게**
+
+## 📋 Round 36 예정
+- [ ] 자동 학습 햅틱 진동
 - [ ] VGGT 통계 확장 패널
 - [ ] 토글 트랜지션
+- [ ] ErrorBoundary home ViewerShell 도 적용
 
 ## 📈 품질 경로
 | 경로 | 상태 | 비용 |

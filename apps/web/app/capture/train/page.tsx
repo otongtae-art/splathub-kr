@@ -31,6 +31,7 @@ import {
   type CaptureMeta,
 } from '@/lib/captureStore';
 import type { ViewerStats } from '@/components/viewer/MeshViewer';
+import ErrorBoundary from '@/components/ErrorBoundary';
 import { callHfSpace, callVggt } from '@/lib/hfSpace';
 
 const MeshViewer = dynamic(() => import('@/components/viewer/MeshViewer'), {
@@ -398,11 +399,42 @@ export default function CaptureTrainPage() {
           </div>
         )}
         <div className="relative flex-1">
-          <MeshViewer
-            fileBytes={glbBytes}
-            autoRotate
-            onStats={setViewerStats}
-          />
+          {/* round 35: ErrorBoundary 로 감싸 Three.js / WebGL 크래시 시 white-screen 방지 */}
+          <ErrorBoundary
+            fallback={(err) => (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-base-0 p-6 text-center">
+                <p className="text-sm font-medium text-danger">3D 뷰어 오류</p>
+                <p className="max-w-sm text-xs text-base-500">
+                  {err.message || 'WebGL 또는 GLB 파싱 실패'}
+                </p>
+                <p className="text-[11px] text-base-400">
+                  Chrome 134+ 권장. 메모리 부족 시 다른 탭 닫고 재시도.
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={downloadGlb}
+                    className="tactile rounded-md border border-base-200 bg-base-50 px-3 py-1.5 text-xs text-base-700 hover:border-base-300"
+                  >
+                    .glb 다운로드만
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => window.location.reload()}
+                    className="tactile rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-base-0"
+                  >
+                    페이지 새로고침
+                  </button>
+                </div>
+              </div>
+            )}
+          >
+            <MeshViewer
+              fileBytes={glbBytes}
+              autoRotate
+              onStats={setViewerStats}
+            />
+          </ErrorBoundary>
           {/* round 27: 다운로드 후 사용 가이드 toast (bottom, dismissible) */}
           {showDownloadGuide && (
             <div className="pointer-events-auto absolute bottom-4 left-1/2 max-w-md -translate-x-1/2 px-4 animate-fade-in">
