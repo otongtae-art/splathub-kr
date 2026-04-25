@@ -33,6 +33,7 @@ import {
 import type { ViewerStats } from '@/components/viewer/MeshViewer';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { callHfSpace, callVggt } from '@/lib/hfSpace';
+import { usePWAInstall } from '@/lib/usePWAInstall';
 
 const MeshViewer = dynamic(() => import('@/components/viewer/MeshViewer'), {
   ssr: false,
@@ -70,6 +71,8 @@ export default function CaptureTrainPage() {
   const [activeView, setActiveView] = useState<'vggt' | 'trellis'>('vggt');
   // round 27 — 다운로드 후 사용 가이드 toast (1회 표시, sessionStorage 로 dismissed 추적)
   const [showDownloadGuide, setShowDownloadGuide] = useState(false);
+  // round 39 — PWA 'home 화면에 추가' 안내
+  const pwa = usePWAInstall();
   const thumbnailGridRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -435,34 +438,70 @@ export default function CaptureTrainPage() {
               onStats={setViewerStats}
             />
           </ErrorBoundary>
-          {/* round 27: 다운로드 후 사용 가이드 toast (bottom, dismissible) */}
-          {showDownloadGuide && (
+          {/* round 27+39: 다운로드 가이드 + PWA 설치 안내 (조건부 결합) */}
+          {(showDownloadGuide ||
+            (pwa.canInstall && !pwa.installed && !pwa.dismissed)) && (
             <div className="pointer-events-auto absolute bottom-4 left-1/2 max-w-md -translate-x-1/2 px-4 animate-fade-in">
-              <div className="flex items-start gap-2.5 rounded-md border border-accent/40 bg-black/90 px-3.5 py-2.5 text-xs text-white shadow-xl backdrop-blur-md">
-                <span className="mt-0.5 text-accent">📂</span>
-                <div className="flex flex-1 flex-col gap-1">
-                  <p className="font-medium">다운로드 완료 · 사용 방법</p>
-                  <p className="text-[11px] text-white/75 leading-relaxed">
-                    빠른 미리보기:{' '}
-                    <a
-                      href="https://gltf-viewer.donmccurdy.com/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-accent underline transition-colors hover:text-accent-bright"
+              <div className="flex flex-col gap-2 rounded-md border border-accent/40 bg-black/90 px-3.5 py-2.5 text-xs text-white shadow-xl backdrop-blur-md">
+                {showDownloadGuide && (
+                  <div className="flex items-start gap-2.5">
+                    <span className="mt-0.5 text-accent">📂</span>
+                    <div className="flex flex-1 flex-col gap-1">
+                      <p className="font-medium">다운로드 완료 · 사용 방법</p>
+                      <p className="text-[11px] text-white/75 leading-relaxed">
+                        빠른 미리보기:{' '}
+                        <a
+                          href="https://gltf-viewer.donmccurdy.com/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-accent underline transition-colors hover:text-accent-bright"
+                        >
+                          gltf-viewer.donmccurdy.com
+                        </a>
+                        {' '}에 .glb 끌어 놓기. Blender/Unity/Three.js 도 .glb import 직접 지원.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowDownloadGuide(false)}
+                      aria-label="가이드 닫기"
+                      className="tactile rounded text-[10px] text-white/60 hover:text-white"
                     >
-                      gltf-viewer.donmccurdy.com
-                    </a>
-                    {' '}에 .glb 끌어 놓기. Blender/Unity/Three.js 도 .glb import 직접 지원.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowDownloadGuide(false)}
-                  aria-label="닫기"
-                  className="tactile rounded text-[10px] text-white/60 hover:text-white"
-                >
-                  ✕
-                </button>
+                      ✕
+                    </button>
+                  </div>
+                )}
+                {/* round 39: PWA 설치 안내 — beforeinstallprompt 발생한 사용자만 */}
+                {pwa.canInstall && !pwa.installed && !pwa.dismissed && (
+                  <div
+                    className={`flex items-start gap-2.5 ${showDownloadGuide ? 'border-t border-white/10 pt-2' : ''}`}
+                  >
+                    <span className="mt-0.5 text-accent">📱</span>
+                    <div className="flex flex-1 flex-col gap-1">
+                      <p className="font-medium">홈 화면에 추가</p>
+                      <p className="text-[11px] text-white/75 leading-relaxed">
+                        다음 촬영 시 native 앱처럼 풀스크린 + 1탭 접근.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void pwa.install();
+                      }}
+                      className="tactile rounded bg-accent px-2.5 py-1 text-[11px] font-medium text-base-0 hover:bg-accent-bright"
+                    >
+                      추가
+                    </button>
+                    <button
+                      type="button"
+                      onClick={pwa.dismiss}
+                      aria-label="설치 안내 닫기"
+                      className="tactile rounded text-[10px] text-white/60 hover:text-white"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}

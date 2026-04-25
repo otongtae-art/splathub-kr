@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 38 (배포 중)
-**Current deployed commit**: 68f20d9 (+round 38 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
+**Round**: 39 (배포 중)
+**Current deployed commit**: 9ac6d37 (+round 39 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -284,9 +284,16 @@
     - icons: icon.svg + favicon.ico + apple-icon
     - **모바일 사용자가 홈 화면에 추가 → 풀스크린 native 앱 같은 capture 경험**
 
-## 📋 Round 39 예정
-- [ ] Service worker (offline asset caching)
-- [ ] PWA install prompt UI
+## 🎯 Round 39 구현된 것 (Vercel 자동배포)
+40. **PWA install prompt UI** (`apps/web/lib/usePWAInstall.ts` 신규, `app/capture/train/page.tsx`)
+    - usePWAInstall hook (beforeinstallprompt 가로채기 + sessionStorage dismiss + iOS 감지 + appinstalled 추적)
+    - train 페이지 result view 에 '📱 홈 화면에 추가 [추가][✕]' 안내
+    - R27 다운로드 가이드 toast 와 같은 위치 stack (조건부 결합)
+    - **PWA 채택률 ↑ — 사용자 성공 모멘트에 install 명시적 노출**
+
+## 📋 Round 40 예정
+- [ ] iOS 사용자 'Safari 공유 → 홈 화면에 추가' 안내
+- [ ] Service worker (offline)
 - [ ] VGGT 통계 확장 패널
 - [ ] 토글 트랜지션
 
