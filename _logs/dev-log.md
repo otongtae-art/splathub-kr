@@ -7,3 +7,4 @@
 [2026-04-21T15:55+09:00] [round 1.1] [pivot] Poisson mesh 타임아웃 (3분+) → 포기. Viewer point size 확대로 대체
 [2026-04-21T15:57+09:00] [round 1.2] [deploying] MeshViewer PointsMaterial size=0.008 + DeviceMotion 가속도 누적
 [2026-04-24T15:25+09:00] [round 2] [fix] 자율 루프 재활성화 (절대날짜 종료조건 제거) + VGGT anonymous fallback 추가 (쿼터 소진 대응)
+[2026-04-24T16:05+09:00] [round 3] [deployed] 클라이언트 이미지 리사이즈 (max 800px) — VGGT 업로드 ~10× 감소 (15MB→1.5MB), ZeroGPU 시간 절약 — commit c2f31be

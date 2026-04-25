@@ -168,13 +168,28 @@ export default function DashboardPage() {
         <section className="flex flex-1 flex-col gap-8 p-6 sm:p-10 lg:p-14">
           {step === 'upload' && (
             <div className="flex flex-col gap-6 animate-slide-up">
-              <header className="flex flex-col gap-2">
-                <h1 className="text-3xl font-semibold tracking-tight text-base-900">
-                  3D 모델 만들기
+              <header className="flex flex-col gap-2.5">
+                <h1 className="text-4xl font-semibold tracking-tight text-base-900 sm:text-[44px]">
+                  사진으로 <span className="text-accent">진짜 3D</span> 만들기
                 </h1>
-                <p className="max-w-[55ch] text-base text-base-600">
-                  품질과 속도 중에서 선택하세요. 둘 다 서버 GPU 비용 0원.
+                <p className="max-w-[55ch] text-base leading-relaxed text-base-600">
+                  물체 주변을 걸으며 사진 20장 찍으면 끝. AI 가 상상하는 게 아니라
+                  실제 측정으로 3D 재구성합니다. 모든 경로 서버 비용 0원.
                 </p>
+                <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-base-500">
+                  <span className="rounded-full border border-base-200 bg-base-50 px-2 py-0.5">
+                    Meta VGGT
+                  </span>
+                  <span className="rounded-full border border-base-200 bg-base-50 px-2 py-0.5">
+                    Microsoft TRELLIS.2
+                  </span>
+                  <span className="rounded-full border border-base-200 bg-base-50 px-2 py-0.5">
+                    Brush WebGPU
+                  </span>
+                  <span className="rounded-full border border-accent/30 bg-accent/[0.05] px-2 py-0.5 text-accent">
+                    무료 · 한국어
+                  </span>
+                </div>
               </header>
 
               {/* 2갈래 경로 선택 */}
@@ -189,14 +204,14 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex items-center gap-2 text-accent">
                     <Camera size={16} weight="regular" />
-                    <h3 className="text-sm font-semibold">진짜 3D · 동영상 스캔</h3>
+                    <h3 className="text-sm font-semibold">진짜 3D · 다각도 촬영</h3>
                   </div>
                   <p className="text-xs leading-relaxed text-base-600">
-                    15~20초 동영상 → 브라우저 WebGPU 로 <b>photogrammetry 학습</b>.
-                    삼성/애플 3D 스캐너와 같은 원리, 환각 없는 실제 측정 기반.
+                    물체 주변 한 바퀴 걸으며 20장 촬영 →
+                    Meta VGGT 가 <b>실측 photogrammetry</b> 로 3D 재구성. 삼성/애플 방식.
                   </p>
                   <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-base-500">
-                    <span>⏱ 5~15분</span>
+                    <span>⏱ 1~2분</span>
                     <span>🎯 품질 ⭐⭐⭐⭐</span>
                     <span>💻 Chrome 134+</span>
                   </div>
