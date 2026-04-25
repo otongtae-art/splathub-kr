@@ -281,6 +281,11 @@ export async function callVggt(
   for (const img of resized) {
     fd.append('images', img);
   }
+  // round 51: per-request prediction_mode (R47 활용). R47 미배포 worker
+  // 는 이 form 필드를 그냥 무시 → backward compatible. R47+R4 둘 다
+  // 배포되면 env 변수 설정 없이도 'Pointmap Branch' 강제 → monster fix.
+  fd.append('prediction_mode', 'Pointmap Branch');
+  fd.append('conf_thres', '3');
 
   // VGGT 는 시간이 좀 걸리므로 fake progress 타이머
   const startTs = Date.now();

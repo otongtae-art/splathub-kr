@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 50 🎯 (worker only, 50라운드 마일스톤)
-**Current deployed commit**: a4c4f3b (R46 까지 frontend 배포 / R49 frontend pending) / `04a763b @ HF Space` (backend R4+R47+R48+R50 대기)
+**Round**: 51 (frontend, R47 deploy 후 자동 활성)
+**Current deployed commit**: a4c4f3b (R46 까지 frontend 배포 / R49 + R51 frontend pending) / `04a763b @ HF Space` (backend R4+R47+R48+R50 대기)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -365,10 +365,16 @@
     - VGGT upload + recon 양쪽 wrap
     - **HF Space cold start / GPU 큐 일시 폭주 자동 회복**
 
-## 📋 Round 51 예정
-- [ ] Frontend callVggt 에 prediction_mode='Pointmap Branch' 명시 (R47 활용)
+## 🎯 Round 51 구현된 것 (frontend, R47 deploy 후 활성)
+52. **callVggt 에 prediction_mode form 명시** (`apps/web/lib/hfSpace.ts`)
+    - FormData 에 `prediction_mode='Pointmap Branch'` + `conf_thres=3` 추가
+    - R47 미배포 worker 는 form 필드 무시 (backward compat)
+    - **R47+R4 deploy 후 env 의존 zero — frontend 가 항상 Pointmap 강제**
+
+## 📋 Round 52 예정
 - [ ] A/B 토글 (Pointmap vs Depthmap)
 - [ ] Service worker
+- [ ] VGGT metadata sidecar JSON
 
 ## 📈 품질 경로
 | 경로 | 상태 | 비용 |
