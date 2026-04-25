@@ -400,6 +400,59 @@ def convert_pointcloud_to_mesh(glb_in: str) -> str:
         return glb_in
 
 
+def _is_transient_error(e: Exception) -> bool:
+    """Round 50: 502/503/504/timeout/connection 등 재시도 가능 에러 판별.
+
+    HF Space 가 cold start, 일시적 GPU 큐 폭주, network glitch 등으로
+    실패할 때 단일 retry 로 회복 가능. 영구 에러 (인증, 잘못된 input,
+    quota 소진 등) 는 retry 안 함.
+    """
+    msg = str(e).lower()
+    transient_signals = (
+        '502', '503', '504', 'gateway',
+        'timeout', 'timed out',
+        'connection', 'reset',
+        'temporarily',
+    )
+    if any(s in msg for s in transient_signals):
+        return True
+    # quota / permission 은 재시도 X
+    if 'quota' in msg or 'rate limit' in msg or '429' in msg:
+        return False
+    if 'permission' in msg or '401' in msg or '403' in msg:
+        return False
+    return False
+
+
+def _with_retry(fn, *, label: str, max_attempts: int = 2):
+    """Round 50: transient 에러에 한해 1회 재시도. 지수 backoff (1s, 3s).
+
+    Args:
+      fn: callable[[], T] — 재시도 대상 함수
+      label: 로그 prefix
+      max_attempts: 최대 시도 (기본 2 = 첫 시도 + 1 retry)
+    """
+    import time as _time
+    last_exc: Exception | None = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return fn()
+        except Exception as e:
+            last_exc = e
+            if attempt >= max_attempts or not _is_transient_error(e):
+                raise
+            backoff = 1 if attempt == 1 else 3
+            logger.warning(
+                "[%s] attempt %d failed (transient): %s — retrying in %ds",
+                label, attempt, str(e)[:200], backoff,
+            )
+            _time.sleep(backoff)
+    # 도달 불가 (raise 된 후)
+    if last_exc:
+        raise last_exc
+    raise RuntimeError(f"[{label}] retry loop exited unexpectedly")
+
+
 def convert_images_to_glb_vggt(
     image_paths: list[str],
     prediction_mode_override: str | None = None,
@@ -424,10 +477,14 @@ def convert_images_to_glb_vggt(
 
     def _run(client: Client) -> str:
         logger.info("[vggt 1/2] uploading %d images", len(image_paths))
-        upload_result = client.predict(
-            input_video=None,
-            input_images=[handle_file(p) for p in image_paths],
-            api_name="/update_gallery_on_upload",
+        # round 50: transient 에러 (502/503/504/timeout) 시 자동 1회 재시도
+        upload_result = _with_retry(
+            lambda: client.predict(
+                input_video=None,
+                input_images=[handle_file(p) for p in image_paths],
+                api_name="/update_gallery_on_upload",
+            ),
+            label="vggt-upload",
         )
         if not isinstance(upload_result, (list, tuple)) or len(upload_result) < 2:
             raise RuntimeError(f"unexpected upload result: {upload_result}")
@@ -457,16 +514,20 @@ def convert_images_to_glb_vggt(
             prediction_mode,
             conf_thres,
         )
-        recon_result = client.predict(
-            target_dir=target_dir,
-            conf_thres=conf_thres,
-            frame_filter="All",
-            mask_black_bg=False,
-            mask_white_bg=False,
-            show_cam=False,
-            mask_sky=False,
-            prediction_mode=prediction_mode,
-            api_name="/gradio_demo",
+        # round 50: recon 도 transient 재시도 (~120s 한도라 1회만 의미 있음)
+        recon_result = _with_retry(
+            lambda: client.predict(
+                target_dir=target_dir,
+                conf_thres=conf_thres,
+                frame_filter="All",
+                mask_black_bg=False,
+                mask_white_bg=False,
+                show_cam=False,
+                mask_sky=False,
+                prediction_mode=prediction_mode,
+                api_name="/gradio_demo",
+            ),
+            label="vggt-recon",
         )
         if not isinstance(recon_result, (list, tuple)) or len(recon_result) < 1:
             raise RuntimeError(f"unexpected recon result: {recon_result}")

@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 49 (frontend, R4 deploy 후 자동 활성화)
-**Current deployed commit**: a4c4f3b (R46 까지 frontend 배포) / `04a763b @ HF Space` (backend R4+R47+R48 대기)
+**Round**: 50 🎯 (worker only, 50라운드 마일스톤)
+**Current deployed commit**: a4c4f3b (R46 까지 frontend 배포 / R49 frontend pending) / `04a763b @ HF Space` (backend R4+R47+R48+R50 대기)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -358,9 +358,16 @@
     - train 페이지 mount 시 호출, R4 활성 시 헤더에 '✓ Pointmap' 배지
     - **R47+R48 worker deploy 후 자동 활성화 — R4 상태 사용자에게 visible**
 
-## 📋 Round 50 예정
-- [ ] Worker timeout/retry
-- [ ] A/B 토글 (Pointmap vs Depthmap, R47 활용)
+## 🎯 Round 50 구현된 것 (worker only, 마일스톤 🎉)
+51. **Worker timeout/retry** (`worker/hf-space/app.py`)
+    - `_is_transient_error()`: 502/503/504/timeout/connection 분류 (quota/permission 제외)
+    - `_with_retry()`: 1회 재시도, 1s+3s 지수 backoff
+    - VGGT upload + recon 양쪽 wrap
+    - **HF Space cold start / GPU 큐 일시 폭주 자동 회복**
+
+## 📋 Round 51 예정
+- [ ] Frontend callVggt 에 prediction_mode='Pointmap Branch' 명시 (R47 활용)
+- [ ] A/B 토글 (Pointmap vs Depthmap)
 - [ ] Service worker
 
 ## 📈 품질 경로
