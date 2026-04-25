@@ -47,6 +47,39 @@ export type HfSpaceResult = {
   backend: 'hf-space' | 'modal-fallback';
 };
 
+/** Worker /api/config 응답 (round 47+48 활성화 후 사용 가능). */
+export type WorkerConfig = {
+  vggt_prediction_mode: string;
+  vggt_conf_thres: number;
+  /** R4 (Pointmap Branch) 활성화 여부 — UI 에 'Pointmap 모드' 배지 표시용 */
+  r4_pointmap_active: boolean;
+  env_overrides?: {
+    VGGT_PREDICTION_MODE: string | null;
+    VGGT_CONF_THRES: string | null;
+  };
+  /** R47 per-request override 지원 여부 — A/B 토글 표시 조건 */
+  supports_per_request_override?: boolean;
+};
+
+/**
+ * Worker /api/config 호출 (round 49). 신규 worker (R47+R48) 가 deploy 안 됐으면
+ * 404 → null 반환. 호출자는 null 시 기존 동작 유지.
+ */
+export async function callConfig(): Promise<WorkerConfig | null> {
+  try {
+    // HF_SPACE_URL 은 /api/convert 형태라 base 추출 후 /api/config
+    const base = HF_SPACE_URL.replace(/\/api\/[^/]+$/, '');
+    const res = await fetch(`${base}/api/config`, {
+      method: 'GET',
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as WorkerConfig;
+  } catch {
+    return null; // 네트워크/CORS 등 실패는 silent
+  }
+}
+
 type ProgressCb = (frac: number, label?: string) => void;
 
 /**

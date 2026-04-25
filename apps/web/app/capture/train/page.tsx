@@ -32,7 +32,7 @@ import {
 } from '@/lib/captureStore';
 import type { ViewerStats } from '@/components/viewer/MeshViewer';
 import ErrorBoundary from '@/components/ErrorBoundary';
-import { callHfSpace, callVggt } from '@/lib/hfSpace';
+import { callConfig, callHfSpace, callVggt, type WorkerConfig } from '@/lib/hfSpace';
 import { usePWAInstall } from '@/lib/usePWAInstall';
 
 const MeshViewer = dynamic(() => import('@/components/viewer/MeshViewer'), {
@@ -73,7 +73,20 @@ export default function CaptureTrainPage() {
   const [showDownloadGuide, setShowDownloadGuide] = useState(false);
   // round 39 — PWA 'home 화면에 추가' 안내
   const pwa = usePWAInstall();
+  // round 49 — Worker config (R47+R48 활성화 후 R4 상태 표시)
+  const [workerConfig, setWorkerConfig] = useState<WorkerConfig | null>(null);
   const thumbnailGridRef = useRef<HTMLDivElement>(null);
+
+  // round 49: Worker /api/config — fire-and-forget. R47/R48 미배포면 null 유지.
+  useEffect(() => {
+    let cancelled = false;
+    callConfig().then((cfg) => {
+      if (!cancelled) setWorkerConfig(cfg);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -325,7 +338,18 @@ export default function CaptureTrainPage() {
                 <span>TRELLIS.2 · 1장 기반 (실측 X)</span>
               </span>
             ) : (
-              <span>VGGT · photogrammetry · {shots.length}장</span>
+              <span className="inline-flex items-center gap-1.5">
+                <span>VGGT · photogrammetry · {shots.length}장</span>
+                {/* round 49: R4 활성화 시 Pointmap 배지 (R47+R48 worker deploy 후) */}
+                {workerConfig?.r4_pointmap_active && (
+                  <span
+                    className="rounded bg-accent/20 px-1.5 py-0.5 text-[10px] font-medium text-accent"
+                    title="Pointmap Branch 모드 — VGGT 가 모든 뷰를 공유 3D 공간으로 직접 회귀해 view-consistent geometry. 평면 layer artifact 감소."
+                  >
+                    ✓ Pointmap
+                  </span>
+                )}
+              </span>
             )}
             {viewerStats && activeView === 'vggt' && (
               <span

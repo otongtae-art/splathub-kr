@@ -1,7 +1,7 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 48 (worker only)
+**Round**: 49 (frontend, R4 deploy 후 자동 활성화)
 **Current deployed commit**: a4c4f3b (R46 까지 frontend 배포) / `04a763b @ HF Space` (backend R4+R47+R48 대기)
 
 ## 🎯 Round 1 구현된 것
@@ -352,9 +352,15 @@
     - Frontend 가 R4 활성화 + R47 활성화 자가 검증 가능
     - **사용자에게 'Pointmap 모드 (실측 향상)' 배지 표시 등 후속 라운드 기반**
 
-## 📋 Round 49 예정
+## 🎯 Round 49 구현된 것 (Frontend, R4 deploy 후 활성)
+50. **Frontend callConfig() + 'Pointmap' 배지** (`apps/web/lib/hfSpace.ts`, `app/capture/train/page.tsx`)
+    - callConfig() 헬퍼 + WorkerConfig 타입 (silent null on 404)
+    - train 페이지 mount 시 호출, R4 활성 시 헤더에 '✓ Pointmap' 배지
+    - **R47+R48 worker deploy 후 자동 활성화 — R4 상태 사용자에게 visible**
+
+## 📋 Round 50 예정
 - [ ] Worker timeout/retry
-- [ ] Frontend callConfig() (R47/R48 배포 후)
+- [ ] A/B 토글 (Pointmap vs Depthmap, R47 활용)
 - [ ] Service worker
 
 ## 📈 품질 경로
