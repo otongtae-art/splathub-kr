@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 12 (배포 중)
-**Current deployed commit**: 28b3bd5 (+round 12 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
+**Round**: 13 (배포 중)
+**Current deployed commit**: fe8462a (+round 13 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -110,10 +110,17 @@
     - 토글 라벨: "🎬 자동 촬영 — 빈 섹터 진입 시 3장 burst (sharp 1장 채택)"
     - **사용자 부담 0, 흐림 사진 발생률 대폭 감소**
 
-## 📋 Round 13 예정
+## 🎯 Round 13 구현된 것 (Vercel 자동배포)
+14. **미니맵 추천 다음 sector 강조** (`apps/web/app/capture/page.tsx`)
+    - currentAlpha 기준 양방향 가장 가까운 빈 sector 1개 검색
+    - 풀 빨강 + r=1.8 + animate-pulse → "여기로 가세요" 직관적 인지
+    - 채울 때마다 다음 가까운 빈 곳으로 자동 이동
+    - **R6 의 모든-동일-dim → 추천-1개-강조 로 전환**
+
+## 📋 Round 14 예정
 - [ ] 햅틱 진동 (Vibration API)
-- [ ] 미니맵 '추천 다음 위치' 화살표
-- [ ] 결과 페이지에 R7 dropped 사진 미리보기
+- [ ] 결과 페이지 R7 dropped 사진 미리보기
+- [ ] Manual 셔터 burst 토글
 - [ ] HF Space env 활성화 도구
 
 ## 📈 품질 경로

@@ -118,6 +118,25 @@ export default function CapturePage() {
     }
   });
 
+  // round 13: 현재 위치에서 가장 가까운 빈 섹터 — 미니맵 'go this way' 타겟.
+  // 양방향 (시계 + 반시계) 으로 동시 검색해 더 가까운 쪽 선택.
+  let nextSector: number | null = null;
+  if (liveAlpha != null && sectorsCovered.size < SECTORS) {
+    const cur = Math.floor(liveAlpha / SECTOR_ANGLE) % SECTORS;
+    for (let dist = 0; dist <= SECTORS / 2; dist++) {
+      const cw = (cur + dist) % SECTORS;
+      const ccw = (cur - dist + SECTORS) % SECTORS;
+      if (!sectorsCovered.has(cw)) {
+        nextSector = cw;
+        break;
+      }
+      if (!sectorsCovered.has(ccw)) {
+        nextSector = ccw;
+        break;
+      }
+    }
+  }
+
   // 흐림 판정 — 모든 shot 의 sharpness 분포 기반 (median * 0.4 미만 + abs 30 미만)
   const blurryIds = new Set<string>();
   if (shots.length >= 3) {
@@ -686,11 +705,12 @@ export default function CapturePage() {
                 </div>
               )}
 
-              {/* 3D 미니맵 — covered/missing 섹터 + 현재 카메라 방향 */}
+              {/* 3D 미니맵 — covered/missing 섹터 + 현재 카메라 방향 + 추천 다음 위치 */}
               <AngleMap3D
                 shots={shots}
                 sectorsCovered={sectorsCovered}
                 liveAlpha={hasGyro ? liveAlpha : null}
+                nextSector={hasGyro ? nextSector : null}
               />
 
               {/* 썸네일 스트립 — 흐린 사진은 빨간 테두리 + "흐림" 배지 */}
@@ -1021,10 +1041,13 @@ function AngleMap3D({
   shots,
   sectorsCovered,
   liveAlpha,
+  nextSector,
 }: {
   shots: Shot[];
   sectorsCovered: Set<number>;
   liveAlpha: number | null;
+  /** 현재 위치에서 가장 가까운 빈 섹터 — 'go this way' 강조 (round 13) */
+  nextSector: number | null;
 }) {
   // 36 섹터 = 10° 간격 ring (적도 위에 배치)
   const sectors = Array.from({ length: SECTORS }, (_, i) => i);
@@ -1060,26 +1083,31 @@ function AngleMap3D({
           strokeWidth="0.5"
         />
 
-        {/* 36 섹터 ring — covered=초록, missing=빨강 dim. 적도 평면. */}
+        {/* 36 섹터 ring — covered=초록, missing=빨강 dim, next=강조. 적도 평면. */}
         {sectors.map((s) => {
           const covered = sectorsCovered.has(s);
+          const isNext = !covered && s === nextSector;
           // 섹터 중심 각도 (sector 0 = 0°, sector 1 = 10°, ...)
           const centerDeg = s * SECTOR_ANGLE + SECTOR_ANGLE / 2;
           const rad = (centerDeg * Math.PI) / 180;
           const r = 32; // 메인 구체 r=35 보다 약간 안쪽
           const x = 50 + r * Math.cos(rad);
           const y = 50 + r * Math.sin(rad) * 0.34; // 적도 ellipse ratio (12/35)
+          // 다음 추천 sector → 더 크게 + 풀 빨강 + pulse, 일반 missing 보다 눈에 띔
           return (
             <circle
               key={`sec-${s}`}
               cx={x}
               cy={y}
-              r="1.0"
+              r={isNext ? 1.8 : 1.0}
               fill={
                 covered
                   ? 'rgba(16, 185, 129, 0.55)'
-                  : 'rgba(239, 68, 68, 0.42)'
+                  : isNext
+                    ? 'rgba(239, 68, 68, 0.95)'
+                    : 'rgba(239, 68, 68, 0.42)'
               }
+              className={isNext ? 'animate-pulse' : undefined}
             />
           );
         })}
