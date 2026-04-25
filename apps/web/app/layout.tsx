@@ -60,12 +60,22 @@ export const metadata: Metadata = {
     title: 'SplatHub — 사진으로 진짜 3D 만들기',
     description:
       '물체 주변을 걸으며 20장 촬영하면 photogrammetry 로 3D 재구성. AI 환각 없는 실측 기반. 무료. by wishmaker (오용택 / austinoh).',
+    images: [
+      {
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'SplatHub — 사진으로 진짜 3D',
+        type: 'image/png',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'SplatHub — 사진으로 진짜 3D',
     description: '물체 주변을 걸으며 20장 촬영. photogrammetry 기반. 무료.',
     creator: '@austinoh',
+    images: ['/og-image.png'],
   },
   robots: {
     index: true,
