@@ -31,4 +31,5 @@
 [2026-04-25T02:38+09:00] [round 23] [deployed] 셔터 흰 플래시 오버레이 — key=Date.now() 갱신으로 div 재마운트 → 기존 animate-flash (800ms) 재실행. opacity 0.55 흰색 → 투명. R14 햅틱 + R22 사운드와 트리오 완성, 모든 환경 동작 시각 피드백. commit 9fdbd9b
 [2026-04-25T02:46+09:00] [round 24] [deployed] TRELLIS 'AI 생성' 라벨 — R19 폴백이 활성화되어 viewer 가 photogrammetry 가 아닌 AI 결과를 보여줄 때, 헤더에 amber 'AI 생성' 배지 + 'TRELLIS.2 · 1장 기반 (실측 X)' 텍스트. 사용자가 결과 출처를 명확히 인지 → 신뢰성/진실성. commit 536c800
 [2026-04-25T02:54+09:00] [round 25] [deployed] VGGT/TRELLIS 결과 토글 — R19 폴백이 VGGT 결과를 덮어쓰던 것을 vggtBytes/trellisBytes 별도 보관으로 변경. 헤더에 [VGGT(실측)] [TRELLIS(AI)] 토글 추가, 사용자가 두 결과 비교 가능. monster banner 는 VGGT 모드에서만 표시. commit 59dccd4
-[2026-04-25T03:02+09:00] [round 26] [deploying] 다운로드 파일명 view 별 + 환경 체크 진행 indicator — 다운로드 파일명이 'splathub-vggt-{ts}.glb' / 'splathub-trellis-ai-{ts}.glb' 로 활성 view 반영. 카메라 시작 후 1초 환경 체크 동안 '환경 체크 중 · 1초만 가만히' 펄싱 점 표시 → silent wait 제거
+[2026-04-25T03:02+09:00] [round 26] [deployed] 다운로드 파일명 view 별 + 환경 체크 진행 indicator — 다운로드 파일명이 'splathub-vggt-{ts}.glb' / 'splathub-trellis-ai-{ts}.glb' 로 활성 view 반영. 카메라 시작 후 1초 환경 체크 동안 '환경 체크 중 · 1초만 가만히' 펄싱 점 표시 → silent wait 제거. commit cf52747
+[2026-04-25T03:10+09:00] [round 27] [deploying] 다운로드 후 사용 가이드 toast — 첫 다운로드 시 bottom-center 에 '📂 다운로드 완료 · 사용 방법: gltf-viewer.donmccurdy.com 에 .glb 끌어놓기. Blender/Unity/Three.js 도 직접 import' 표시. sessionStorage 로 1세션 1회만

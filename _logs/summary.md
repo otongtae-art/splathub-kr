@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 26 (배포 중)
-**Current deployed commit**: 59dccd4 (+round 26 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
+**Round**: 27 (배포 중)
+**Current deployed commit**: cf52747 (+round 27 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -202,10 +202,17 @@
     - 카메라 시작 후 1초 환경 체크 동안 "환경 체크 중 · 1초만 가만히" 펄싱 점
     - **R25 토글 + R15-R17 환경 체크 두 feature 모두 사이클 완성**
 
-## 📋 Round 27 예정
-- [ ] VGGT 통계 확장 패널 (debug/power user)
-- [ ] 결과 페이지 사용 가이드 (GLB 어디서 열기)
-- [ ] 토글 시 화면 전환 트랜지션
+## 🎯 Round 27 구현된 것 (Vercel 자동배포)
+28. **다운로드 후 사용 가이드 toast** (`apps/web/app/capture/train/page.tsx`)
+    - 첫 다운로드 시 viewer 위 bottom-center 에 toast: "📂 다운로드 완료 · gltf-viewer.donmccurdy.com 에 .glb 끌어 놓기"
+    - sessionStorage 로 1세션 1회만 (반복 spam 방지)
+    - dismissible (✕)
+    - **사용자 'now what?' 의문 해결 — 다운로드 → 활용 안내**
+
+## 📋 Round 28 예정
+- [ ] VGGT 통계 확장 패널
+- [ ] 토글 트랜지션
+- [ ] 이전 세션 결과 보기 (IndexedDB)
 - [ ] HF Space env 활성화 도구
 
 ## 📈 품질 경로
