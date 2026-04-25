@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 43 (배포 중)
-**Current deployed commit**: 761b7a3 (+round 43 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
+**Round**: 44 (배포 중)
+**Current deployed commit**: 97b42f7 (+round 44 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -318,7 +318,15 @@
     - 기존 PC 모드 칩과 mutex (중복 안내 방지)
     - **R42 거부 케이스에 명시 회복 안내 — 사용자 혼란 ↓**
 
-## 📋 Round 44 예정
+## 🎯 Round 44 구현된 것 (Vercel 자동배포)
+45. **🚀 hands-free 모드 프리셋** (`apps/web/app/capture/page.tsx`)
+    - 자동 촬영 토글 위에 1-클릭 프리셋 버튼
+    - 자동 촬영(R9) + 사운드(R22) + 자동 학습(R34) 3개를 한 번에 ON
+    - 셋 다 켜져 있으면 버튼 숨김
+    - user gesture 안에서 enableShutterSound() 호출 (iOS unlock)
+    - **3 클릭 → 1 클릭, 학습 비용 ↓, hands-free 채택률 ↑**
+
+## 📋 Round 45 예정
 - [ ] Service worker (offline)
 - [ ] VGGT 통계 확장 패널
 - [ ] 토글 트랜지션

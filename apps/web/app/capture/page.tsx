@@ -1271,6 +1271,27 @@ export default function CapturePage() {
               </button>
             </div>
 
+            {/* round 44: 🚀 hands-free 프리셋 — 자동 촬영 + 사운드 + 자동 학습 1-클릭 */}
+            {hasGyro && !(autoCapture && shutterAudio && autoTrainOnTarget) && (
+              <div className="mx-auto mt-3 flex max-w-md items-center justify-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    // 모두 ON — user gesture 안에서 enableShutterSound 도 호출
+                    setAutoCapture(true);
+                    prevSectorRef.current = null;
+                    setAutoWaiting(false);
+                    setShutterAudio(true);
+                    enableShutterSound();
+                    setAutoTrainOnTarget(true);
+                  }}
+                  className="tactile inline-flex items-center gap-1.5 rounded-md border border-accent/40 bg-accent/[0.08] px-3 py-1.5 text-xs font-medium text-accent transition-colors hover:bg-accent/[0.16]"
+                >
+                  🚀 hands-free 모드 — 자동 촬영 + 사운드 + 자동 학습 한 번에
+                </button>
+              </div>
+            )}
+
             {/* 자동 촬영 토글 (자이로 있을 때만 의미 있음) */}
             {hasGyro && (
               <div className="mx-auto mt-3 flex max-w-md flex-col items-center gap-1">
