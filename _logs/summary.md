@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 33 (배포 중)
-**Current deployed commit**: 957194b (+round 33 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
+**Round**: 34 (배포 중)
+**Current deployed commit**: 6567d2f (+round 34 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -249,10 +249,17 @@
     - tooltip 에 정확 수치 + 의미 설명
     - **모바일 (capture 주 채널) 사용자도 결과 품질 즉시 인지**
 
-## 📋 Round 34 예정
+## 🎯 Round 34 구현된 것 (Vercel 자동배포)
+35. **자동 학습 이동 옵션** (`apps/web/app/capture/page.tsx`)
+    - 토글 ON 시 30장 도달 → 5초 countdown banner + 취소 버튼
+    - countdown=0 → proceedToTraining() 자동 호출
+    - 1회성 트리거 (한 번 발사 후 토글 자동 OFF)
+    - **R9 auto-capture + R34 = 진정한 hands-free (시작 토글 + 걷기 만)**
+
+## 📋 Round 35 예정
+- [ ] 자동 학습 시 햅틱 진동
 - [ ] VGGT 통계 확장 패널
 - [ ] 토글 트랜지션
-- [ ] Capture 종료 후 자동 학습 페이지 이동 옵션
 
 ## 📈 품질 경로
 | 경로 | 상태 | 비용 |

@@ -123,6 +123,9 @@ export default function CapturePage() {
   const [manualBurst, setManualBurst] = useState(false);
   // round 22 — 셔터 사운드 (iOS 등 Vibration 미지원 환경 보완)
   const [shutterAudio, setShutterAudio] = useState(false);
+  // round 34 — TARGET_SHOTS 도달 시 자동 학습 페이지 이동 (5초 cancel 가능)
+  const [autoTrainOnTarget, setAutoTrainOnTarget] = useState(false);
+  const [autoTrainCountdown, setAutoTrainCountdown] = useState<number | null>(null);
   // round 28+29 — IndexedDB 에 남은 이전 세션 (이어가기 + 미리보기 thumbnail)
   const [pastSession, setPastSession] = useState<{
     id: string;
@@ -698,6 +701,30 @@ export default function CapturePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // round 34 — TARGET_SHOTS 도달 → 5초 countdown 시작 (auto-train 토글 ON 시)
+  useEffect(() => {
+    if (!autoTrainOnTarget || done || autoTrainCountdown !== null) return;
+    if (shots.length < TARGET_SHOTS) return;
+    setAutoTrainCountdown(5);
+  }, [autoTrainOnTarget, done, autoTrainCountdown, shots.length]);
+
+  // round 34 — countdown 1초마다 decrement
+  useEffect(() => {
+    if (autoTrainCountdown == null || autoTrainCountdown <= 0) return;
+    const t = window.setTimeout(() => {
+      setAutoTrainCountdown((c) => (c == null ? null : c - 1));
+    }, 1000);
+    return () => window.clearTimeout(t);
+  }, [autoTrainCountdown]);
+
+  // round 34 — countdown 0 도달 → 자동 학습 페이지 이동
+  useEffect(() => {
+    if (autoTrainCountdown !== 0) return;
+    setAutoTrainCountdown(null);
+    setAutoTrainOnTarget(false); // 1회성 트리거 (다시 토글해야 재발동)
+    void proceedToTraining();
+  }, [autoTrainCountdown, proceedToTraining]);
+
   // 학습 버튼 활성 조건:
   //   - 자이로 있음: 사진 20장 + 각도 18구간(180° 커버, 10° 간격)
   //   - 자이로 없음: 사진 20장만 (데스크톱 웹캠, 수동 회전)
@@ -909,6 +936,33 @@ export default function CapturePage() {
               {orientationOK === false && (
                 <div className="absolute right-5 top-5 rounded-md bg-amber-500/20 px-3 py-1.5 text-[10px] text-amber-100">
                   💻 PC 모드 — 카메라/대상을 직접 움직여 각도 바꿔주세요
+                </div>
+              )}
+
+              {/* round 34: 자동 학습 countdown — 취소 가능 */}
+              {autoTrainCountdown !== null && autoTrainCountdown > 0 && (
+                <div className="pointer-events-auto absolute left-1/2 top-32 -translate-x-1/2 animate-fade-in">
+                  <div className="flex items-center gap-3 rounded-md border border-accent/60 bg-black/90 px-4 py-2.5 text-sm text-white shadow-xl backdrop-blur-md">
+                    <span className="font-mono text-2xl text-accent">
+                      {autoTrainCountdown}
+                    </span>
+                    <div className="flex flex-col gap-0.5">
+                      <p className="font-medium">자동 학습 시작 중</p>
+                      <p className="text-[10px] text-white/70">
+                        {TARGET_SHOTS}장 도달 — 곧 학습 페이지로 이동
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAutoTrainCountdown(null);
+                        setAutoTrainOnTarget(false);
+                      }}
+                      className="tactile rounded border border-white/30 px-2 py-1 text-xs text-white hover:bg-white/10"
+                    >
+                      취소
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -1204,6 +1258,24 @@ export default function CapturePage() {
                 />
                 <span>
                   🔊 <b>셔터 사운드</b> — 진동 미지원 기기 (iPhone) 보완
+                </span>
+              </label>
+            </div>
+
+            {/* round 34: 자동 학습 이동 토글 (TARGET_SHOTS 도달 시 5초 countdown) */}
+            <div className="mx-auto mt-2 flex max-w-md items-center justify-center">
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-base-500">
+                <input
+                  type="checkbox"
+                  checked={autoTrainOnTarget}
+                  onChange={(e) => {
+                    setAutoTrainOnTarget(e.target.checked);
+                    if (!e.target.checked) setAutoTrainCountdown(null);
+                  }}
+                  className="h-3.5 w-3.5 cursor-pointer accent-accent"
+                />
+                <span>
+                  📚 <b>자동 학습</b> — {TARGET_SHOTS}장 채우면 5초 후 자동 이동
                 </span>
               </label>
             </div>
