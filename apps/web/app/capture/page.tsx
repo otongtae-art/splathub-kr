@@ -159,6 +159,20 @@ export default function CapturePage() {
       if (s) blurryIds.add(s.id);
     });
   }
+
+  // round 21: kept (non-blurry) shot 중 sharpness 최대 — TRELLIS 폴백/메타용
+  // 5장 이상일 때만 의미 있게 표시 (소수면 모두 좋은 사진).
+  let bestShotId: string | null = null;
+  if (shots.length >= 5) {
+    let bestScore = -1;
+    for (const s of shots) {
+      if (blurryIds.has(s.id)) continue; // 흐림 제외
+      if (s.sharpness > bestScore) {
+        bestScore = s.sharpness;
+        bestShotId = s.id;
+      }
+    }
+  }
   // 자이로가 없는 환경 (데스크톱 웹캠 등) 에서는 각 사진을 "수동 각도"
   // 로 간주해 사진 수만으로 학습 조건 충족 가능하게 함.
   const hasGyro = orientationOK === true;
@@ -872,12 +886,18 @@ export default function CapturePage() {
                   <div className="flex gap-2 overflow-x-auto pb-1">
                     {shots.slice(-8).map((s) => {
                       const isBlurry = blurryIds.has(s.id);
+                      const isBest = s.id === bestShotId;
                       return (
                         <div
                           key={s.id}
                           className={`relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-md border ${
-                            isBlurry ? 'border-danger' : 'border-white/20'
+                            isBlurry
+                              ? 'border-danger'
+                              : isBest
+                                ? 'border-accent shadow-[0_0_8px_rgba(16,185,129,0.5)]'
+                                : 'border-white/20'
                           }`}
+                          title={isBest ? `최고 sharp · ${s.sharpness.toFixed(0)}` : undefined}
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
@@ -890,6 +910,11 @@ export default function CapturePage() {
                           {isBlurry && (
                             <span className="absolute bottom-0 left-0 right-0 bg-danger/90 text-center text-[8px] font-medium leading-tight text-white">
                               흐림
+                            </span>
+                          )}
+                          {isBest && !isBlurry && (
+                            <span className="absolute bottom-0 left-0 right-0 bg-accent/90 text-center text-[8px] font-medium leading-tight text-base-0">
+                              ★ best
                             </span>
                           )}
                           <button
