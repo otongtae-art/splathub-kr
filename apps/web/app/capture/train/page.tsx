@@ -44,6 +44,8 @@ const BRUSH_DEMO_URL = 'https://splats.arthurbrussee.com/';
 export default function CaptureTrainPage() {
   const [meta, setMeta] = useState<CaptureMeta | null>(null);
   const [shots, setShots] = useState<File[] | null>(null);
+  // round 18 — R7 자동 제외된 흐림 사진들 (IndexedDB 에서 로드)
+  const [droppedShots, setDroppedShots] = useState<File[] | null>(null);
   const [stage, setStage] = useState<Stage>('loading');
   const [progress, setProgress] = useState<{ frac: number; label: string }>({
     frac: 0,
@@ -66,9 +68,12 @@ export default function CaptureTrainPage() {
           if (data && !cancelled) {
             setShots(data.files);
             setMeta(data.meta);
+            setDroppedShots(data.droppedFiles ?? null);
             setStage('ready');
             console.info(
-              `[train] loaded ${data.files.length} files from IndexedDB (${sessionId})`,
+              `[train] loaded ${data.files.length} files from IndexedDB (${sessionId})${
+                data.droppedFiles ? `, ${data.droppedFiles.length} dropped` : ''
+              }`,
             );
             return;
           }
@@ -293,6 +298,34 @@ export default function CaptureTrainPage() {
           className="grid grid-cols-5 gap-1 sm:grid-cols-8"
         />
       </section>
+
+      {/* round 18: dropped 사진 collapsible 미리보기 — 사용자에게 transparency */}
+      {droppedShots && droppedShots.length > 0 && (
+        <details className="text-xs text-base-500 animate-fade-in">
+          <summary className="cursor-pointer hover:text-base-700">
+            🌀 흐림 자동 제외 {droppedShots.length}장 보기
+          </summary>
+          <div className="mt-2 grid grid-cols-5 gap-1 sm:grid-cols-8">
+            {droppedShots.map((f, i) => {
+              const url = URL.createObjectURL(f);
+              return (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  key={i}
+                  src={url}
+                  alt={`흐림 ${i + 1}`}
+                  className="aspect-square w-full rounded border border-danger/40 object-cover opacity-70"
+                  onLoad={() => URL.revokeObjectURL(url)}
+                />
+              );
+            })}
+          </div>
+          <p className="mt-2 text-[10px] text-base-400">
+            sharpness 낮은 사진은 VGGT 의 카메라 포즈 추정을 흐트러뜨려
+            자동 제외됨. 더 안정된 손으로 다시 찍으면 다음엔 모두 활용됨.
+          </p>
+        </details>
+      )}
 
       {/* 카메라 움직임 검증 — 자이로 데이터로 판정 */}
       {stage === 'ready' && meta?.orientations && (() => {

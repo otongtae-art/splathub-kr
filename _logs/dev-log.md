@@ -22,4 +22,5 @@
 [2026-04-25T01:26+09:00] [round 14] [deployed] 햅틱 피드백 + manual 셔터 burst 토글 — lib/haptics.ts (shutterHaptic 30ms / warningHaptic 더블 탭). 모든 captureShot 에 진동, 흐림/어두움 toast 시 더블탭. Manual 셔터에 '✨ 3장 burst' 토글 (auto 와 별개). Android Chrome 만 실제 동작, 그 외 silent. commit b989326
 [2026-04-25T01:35+09:00] [round 15] [deployed] 환경 사전 체크 — 카메라 시작 후 1초간 brightness 5회 sample, 평균<60 시 'dim' banner ('💡 환경이 어둡습니다 (밝기 X) — 더 밝은 곳 권장'). 사용자가 20+ 사진 투자 전에 환경 개선 결정. shots>0 이면 skip (재실행 안 함), [무시] 버튼으로 dismiss. commit db0926a
 [2026-04-25T01:43+09:00] [round 16] [deployed] 환경 사전 체크에 feature density 추가 — detectFeatures 5회 sample, 평균<20 면 'low_texture' issue. dim/low_texture/둘 다 분기 메시지 ('🎨 질감 부족 — 단색 벽 photogrammetry 작동 불가'). textureless 는 photogrammetry 의 본질적 실패 모드. commit 6f9da4e
-[2026-04-25T01:50+09:00] [round 17] [deploying] 환경 OK ✓ 배지 (2.5초) — R15+R16 가 이전엔 silent pass 였음. 이제 명시적 '✓ 환경 OK · 밝기 X · 특징점 Y' 표시 → 사용자가 시스템이 검사했음을 인지 + 안심
+[2026-04-25T01:50+09:00] [round 17] [deployed] 환경 OK ✓ 배지 (2.5초) — R15+R16 가 이전엔 silent pass 였음. 이제 명시적 '✓ 환경 OK · 밝기 X · 특징점 Y' 표시 → 사용자가 시스템이 검사했음을 인지 + 안심. commit d83ccd7
+[2026-04-25T01:58+09:00] [round 18] [deploying] R7 dropped 사진 미리보기 — captureStore 가 droppedFiles[] 도 IndexedDB 에 별도 저장, train 페이지에 collapsible '<details> 흐림 N장 보기' 로 노출. 사용자가 무엇이 필터됐는지 시각적으로 확인 → 다음 촬영 개선 인사이트

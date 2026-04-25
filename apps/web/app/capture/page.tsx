@@ -558,6 +558,11 @@ export default function CapturePage() {
     const files = kept.map(
       (s, i) => new File([s.blob], `shot-${i}.jpg`, { type: 'image/jpeg' }),
     );
+    // round 18: dropped 사진들도 별도 File[] 로 변환 → IndexedDB 에 보관 →
+    // train 페이지에서 사용자가 미리보기 가능 (transparency)
+    const droppedFiles = droppedShots.map(
+      (s, i) => new File([s.blob], `dropped-${i}.jpg`, { type: 'image/jpeg' }),
+    );
     if (droppedSet.size > 0) {
       console.info(
         `[capture] dropped ${droppedSet.size} blurry shots before VGGT (kept ${kept.length})`,
@@ -568,12 +573,16 @@ export default function CapturePage() {
     setDone(true);
 
     try {
-      // IndexedDB 에 File[] + 메타 저장 — 새로고침해도 살아남음
-      const sessionId = await saveCaptures(files, {
-        sectorsCovered: sectorsCovered.size,
-        orientations: kept.map((s) => s.orientation),
-        droppedBlurry: droppedSet.size,
-      });
+      // IndexedDB 에 File[] + 메타 + dropped 별도 저장
+      const sessionId = await saveCaptures(
+        files,
+        {
+          sectorsCovered: sectorsCovered.size,
+          orientations: kept.map((s) => s.orientation),
+          droppedBlurry: droppedSet.size,
+        },
+        droppedFiles.length > 0 ? droppedFiles : undefined,
+      );
       console.info(`[capture] saved session ${sessionId} (${files.length} files)`);
     } catch (err) {
       console.error('[capture] saveCaptures failed:', err);

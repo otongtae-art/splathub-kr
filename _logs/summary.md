@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 17 (배포 중)
-**Current deployed commit**: 6f9da4e (+round 17 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
+**Round**: 18 (배포 중)
+**Current deployed commit**: d83ccd7 (+round 18 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -144,10 +144,16 @@
     - "✓ 환경 OK · 밝기 X · 특징점 Y" 2.5초 표시
     - **사용자가 시스템이 검사했음을 인지 → 신뢰성 ↑**
 
-## 📋 Round 18 예정
-- [ ] 결과 페이지 R7 dropped 사진 미리보기 (collapsible)
+## 🎯 Round 18 구현된 것 (Vercel 자동배포)
+19. **Dropped 사진 미리보기** (`apps/web/lib/captureStore.ts`, `app/capture/train/page.tsx`)
+    - droppedFiles[] 를 IndexedDB 에 별도 저장
+    - train 페이지에 collapsible "<details> 🌀 흐림 N장 보기" 추가
+    - **사용자가 무엇이 필터됐는지 직접 확인 → 다음 촬영 개선 인사이트**
+
+## 📋 Round 19 예정
 - [ ] 셔터 흰 플래시 오버레이
-- [ ] 작은 환경 status 칩 (항상 표시)
+- [ ] Monster 시 TRELLIS.2 (1장 AI) 폴백 옵션
+- [ ] VGGT 결과 별 통계 시각화
 - [ ] HF Space env 활성화 도구
 
 ## 📈 품질 경로

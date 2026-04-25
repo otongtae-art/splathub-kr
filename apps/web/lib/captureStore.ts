@@ -32,6 +32,8 @@ export type CaptureMeta = {
 type CaptureRecord = {
   id: string;
   files: File[];
+  /** R7 흐림 자동 제외된 사진들 — train 페이지에서 디버깅 미리보기용 (round 18) */
+  droppedFiles?: File[];
   meta: CaptureMeta;
 };
 
@@ -52,12 +54,14 @@ function openDb(): Promise<IDBDatabase> {
 export async function saveCaptures(
   files: File[],
   meta: Omit<CaptureMeta, 'timestamp' | 'count'> = {},
+  droppedFiles?: File[],
 ): Promise<string> {
   const db = await openDb();
   const id = `cap-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const record: CaptureRecord = {
     id,
     files,
+    droppedFiles,
     meta: {
       count: files.length,
       timestamp: Date.now(),
@@ -82,7 +86,7 @@ export async function saveCaptures(
 
 export async function loadCaptures(
   sessionId: string,
-): Promise<{ files: File[]; meta: CaptureMeta } | null> {
+): Promise<{ files: File[]; droppedFiles?: File[]; meta: CaptureMeta } | null> {
   const db = await openDb();
   const record = await new Promise<CaptureRecord | undefined>((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readonly');
@@ -93,7 +97,11 @@ export async function loadCaptures(
   });
   db.close();
   if (!record) return null;
-  return { files: record.files, meta: record.meta };
+  return {
+    files: record.files,
+    droppedFiles: record.droppedFiles,
+    meta: record.meta,
+  };
 }
 
 export async function clearCaptures(sessionId: string): Promise<void> {
