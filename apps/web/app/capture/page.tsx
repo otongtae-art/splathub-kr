@@ -207,6 +207,35 @@ export default function CapturePage() {
   const startCamera = useCallback(async () => {
     try {
       setCameraError(null);
+
+      // round 42: iOS 13+ DeviceMotion/Orientation 권한 명시 요청
+      // (iOS Safari 는 user gesture 안에서 호출해야 prompt 표시 — startCamera 가
+      //  버튼 클릭 핸들러이므로 여기가 적합. 권한 없으면 R6 미니맵, R9 auto-
+      //  capture, R10 motion gate, R34 자동 학습이 silent 비활성 — 큰 UX 손실)
+      type WithPermission = {
+        requestPermission?: () => Promise<'granted' | 'denied'>;
+      };
+      if (typeof DeviceMotionEvent !== 'undefined') {
+        const perm = (DeviceMotionEvent as unknown as WithPermission).requestPermission;
+        if (typeof perm === 'function') {
+          try {
+            await perm();
+          } catch (e) {
+            console.warn('[capture] DeviceMotion permission denied:', e);
+          }
+        }
+      }
+      if (typeof DeviceOrientationEvent !== 'undefined') {
+        const perm = (DeviceOrientationEvent as unknown as WithPermission).requestPermission;
+        if (typeof perm === 'function') {
+          try {
+            await perm();
+          } catch (e) {
+            console.warn('[capture] DeviceOrientation permission denied:', e);
+          }
+        }
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: 'environment',

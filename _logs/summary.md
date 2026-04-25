@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 41 (배포 중)
-**Current deployed commit**: 1724c8f (+round 41 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
+**Round**: 42 (BUG FIX 배포 중)
+**Current deployed commit**: b97a6fb (+round 42 BUG FIX 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -304,8 +304,15 @@
     - whitespace-pre-line 줄바꿈 보존, [다시 시도] + [페이지 새로고침] 버튼
     - **사용자 회복 경로 명확 — 권한 거부 후 포기 ↓**
 
-## 📋 Round 42 예정
-- [ ] iOS 13+ DeviceMotion 권한 요청
+## 🎯 Round 42 구현된 것 — BUG FIX (Vercel 자동배포)
+43. **iOS 13+ DeviceMotion/Orientation 권한 요청** (`apps/web/app/capture/page.tsx`)
+    - `startCamera()` 안에서 `requestPermission()` 명시 호출 (user gesture)
+    - 이전: silent 무시되어 R6/R9/R10/R13/R34 모두 iOS Safari 에서 비활성
+    - 이후: iOS prompt → 허용 → 모든 자동화 기능 작동
+    - **iPhone 사용자 (capture 주 채널) 의 큰 UX 손실 회복**
+
+## 📋 Round 43 예정
+- [ ] iOS 권한 거부 시 명시 안내
 - [ ] Service worker (offline)
 - [ ] VGGT 통계 확장 패널
 - [ ] 토글 트랜지션
