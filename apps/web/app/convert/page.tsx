@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { ArrowLeft, Camera } from '@phosphor-icons/react/dist/ssr';
 import PhotoDropzone from '@/components/upload/PhotoDropzone';
 import JobProgress from '@/components/upload/JobProgress';
+import ErrorBoundary from '@/components/ErrorBoundary';
 // PhotoDropzone의 새로운 onJobCreated 시그니처(jobId, thumbnailUrl)와 호환
 
 const ViewerShell = dynamic(() => import('@/components/viewer/ViewerShell'), {
@@ -102,12 +103,24 @@ export default function ConvertPage() {
         <section className="flex flex-col gap-3 animate-scale-in">
           <h2 className="text-base font-medium text-base-800">결과 미리보기</h2>
           <div className="h-[60dvh] overflow-hidden rounded-md border border-base-100 bg-base-0">
-            <ViewerShell
-              url={resultSpzUrl ?? undefined}
-              fileBytes={resultBytes ?? undefined}
-              fileType={resultType}
-              minimal
-            />
+            {/* round 36: ErrorBoundary — WebGL 실패 시 fallback */}
+            <ErrorBoundary
+              fallback={
+                <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-6 text-center text-sm text-base-500">
+                  <p className="font-medium text-danger">3D 뷰어 오류</p>
+                  <p className="text-xs text-base-400">
+                    Chrome 134+ 권장. 새로고침 후 다시 시도해주세요.
+                  </p>
+                </div>
+              }
+            >
+              <ViewerShell
+                url={resultSpzUrl ?? undefined}
+                fileBytes={resultBytes ?? undefined}
+                fileType={resultType}
+                minimal
+              />
+            </ErrorBoundary>
           </div>
           <button
             type="button"

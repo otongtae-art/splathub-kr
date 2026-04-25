@@ -30,6 +30,7 @@ import {
 } from '@phosphor-icons/react/dist/ssr';
 import PhotoDropzone from '@/components/upload/PhotoDropzone';
 import JobProgress from '@/components/upload/JobProgress';
+import ErrorBoundary from '@/components/ErrorBoundary';
 import type { ReconstructionMode } from '@/lib/gen3d';
 
 const ViewerShell = dynamic(() => import('@/components/viewer/ViewerShell'), {
@@ -384,17 +385,29 @@ export default function DashboardPage() {
               </header>
 
               <div className="aspect-[4/3] w-full overflow-hidden rounded-lg border border-base-100 bg-base-0 sm:aspect-[16/10]">
-                {currentModel.glbBytes ? (
-                  <MeshViewer fileBytes={currentModel.glbBytes} autoRotate />
-                ) : (
-                  <ViewerShell
-                    url={currentModel.spzUrl ?? undefined}
-                    fileBytes={currentModel.plyBytes ?? undefined}
-                    fileType="splat"
-                    autoRotate
-                    minimal
-                  />
-                )}
+                {/* round 36: ErrorBoundary — WebGL/GLB 파싱 실패 시 fallback */}
+                <ErrorBoundary
+                  fallback={
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-6 text-center text-sm text-base-500">
+                      <p className="font-medium text-danger">3D 뷰어 오류</p>
+                      <p className="text-xs text-base-400">
+                        Chrome 134+ 권장. 다른 모델 시도하거나 새로고침.
+                      </p>
+                    </div>
+                  }
+                >
+                  {currentModel.glbBytes ? (
+                    <MeshViewer fileBytes={currentModel.glbBytes} autoRotate />
+                  ) : (
+                    <ViewerShell
+                      url={currentModel.spzUrl ?? undefined}
+                      fileBytes={currentModel.plyBytes ?? undefined}
+                      fileType="splat"
+                      autoRotate
+                      minimal
+                    />
+                  )}
+                </ErrorBoundary>
               </div>
 
               <div className="flex items-center gap-2 border-t border-base-100 pt-4">

@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 35 (배포 중)
-**Current deployed commit**: 94f7eeb (+round 35 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
+**Round**: 36 (배포 중)
+**Current deployed commit**: 37c1028 (+round 36 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -263,11 +263,17 @@
     - Fallback: "3D 뷰어 오류 / Chrome 134+ 권장 / [.glb 다운로드만] [새로고침]"
     - **사용자가 뷰어 못 봐도 결과 잃지 않게**
 
-## 📋 Round 36 예정
+## 🎯 Round 36 구현된 것 (Vercel 자동배포)
+37. **ErrorBoundary 모든 viewer 사이트 적용** (`apps/web/app/page.tsx`, `app/m/[slug]/page.tsx`, `app/convert/page.tsx`)
+    - R35 패턴을 home + sample 모델 + convert 결과 viewer 모두 wrap
+    - 일관된 fallback UI ("3D 뷰어 오류 / Chrome 134+ 권장")
+    - **4개 viewer 모두 보호 — 어디서 WebGL crash 해도 white screen 안 남**
+
+## 📋 Round 37 예정
 - [ ] 자동 학습 햅틱 진동
 - [ ] VGGT 통계 확장 패널
 - [ ] 토글 트랜지션
-- [ ] ErrorBoundary home ViewerShell 도 적용
+- [ ] 페이지 단위 error.tsx
 
 ## 📈 품질 경로
 | 경로 | 상태 | 비용 |

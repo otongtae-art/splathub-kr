@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { DownloadSimple, ArrowLeft, Heart, Eye } from '@phosphor-icons/react/dist/ssr';
 import ViewerShell from '@/components/viewer/ViewerShell';
+import ErrorBoundary from '@/components/ErrorBoundary';
 import { SAMPLE_MODELS, getSampleBySlug } from '@/lib/samples';
 
 type PageProps = {
@@ -17,7 +18,19 @@ export default async function ModelPage({ params }: PageProps) {
   return (
     <main className="flex min-h-[100dvh] flex-col">
       <div className="h-[70dvh] w-full border-b border-base-100">
-        <ViewerShell url={model.spz_url} title={model.title} subtitle={`@${model.author_handle}`} />
+        {/* round 36: ErrorBoundary — WebGL/.spz 파싱 실패 시 fallback */}
+        <ErrorBoundary
+          fallback={
+            <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-6 text-center text-sm text-base-500">
+              <p className="font-medium text-danger">3D 뷰어 오류</p>
+              <p className="text-xs text-base-400">
+                Chrome 134+ 권장. 새로고침하거나 다른 모델을 시도해보세요.
+              </p>
+            </div>
+          }
+        >
+          <ViewerShell url={model.spz_url} title={model.title} subtitle={`@${model.author_handle}`} />
+        </ErrorBoundary>
       </div>
       <section className="mx-auto w-full max-w-3xl px-6 py-6 sm:px-8 animate-fade-in">
         <div className="flex items-end justify-between gap-4">
