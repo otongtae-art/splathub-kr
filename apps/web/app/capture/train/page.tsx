@@ -253,8 +253,18 @@ export default function CaptureTrainPage() {
             홈으로
           </Link>
           <div className="flex items-center gap-3 text-xs text-base-500">
-            <span>VGGT · photogrammetry · {shots.length}장</span>
-            {viewerStats && (
+            {/* round 24: source 명시 — VGGT photogrammetry vs TRELLIS AI 생성 구분 */}
+            {trellisState === 'done' ? (
+              <span className="inline-flex items-center gap-1.5">
+                <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
+                  AI 생성
+                </span>
+                <span>TRELLIS.2 · 1장 기반 (실측 X)</span>
+              </span>
+            ) : (
+              <span>VGGT · photogrammetry · {shots.length}장</span>
+            )}
+            {viewerStats && trellisState !== 'done' && (
               <span className="hidden font-mono text-base-400 sm:inline">
                 {viewerStats.retainedCount.toLocaleString()}pts ·{' '}
                 평탄도 {(viewerStats.flatness * 100).toFixed(0)}%

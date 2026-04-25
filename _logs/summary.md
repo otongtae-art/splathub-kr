@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 23 (배포 중)
-**Current deployed commit**: a6b2c0e (+round 23 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
+**Round**: 24 (배포 중)
+**Current deployed commit**: 9fdbd9b (+round 24 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -183,10 +183,16 @@
     - opacity 0.55 흰색 → 투명 (800ms ease-out)
     - **R14 햅틱 + R22 사운드 + R23 시각 = 셔터 피드백 트리오 완성 (모든 환경 최소 1채널)**
 
-## 📋 Round 24 예정
-- [ ] VGGT 결과 통계 시각화 (R5 stats 확장 패널)
+## 🎯 Round 24 구현된 것 (Vercel 자동배포)
+25. **TRELLIS 'AI 생성' 라벨** (`apps/web/app/capture/train/page.tsx`)
+    - R19 폴백 활성화 시 헤더에 amber 'AI 생성' 배지 + 'TRELLIS.2 · 1장 기반 (실측 X)'
+    - 기본 (VGGT): 'VGGT · photogrammetry · {N}장' + viewer stats
+    - **결과 출처 명확 — 사용자가 photogrammetry vs AI 생성 혼동 방지**
+
+## 📋 Round 25 예정
+- [ ] VGGT 결과 통계 확장 패널
 - [ ] 환경 사전 체크 진행 indicator
-- [ ] TRELLIS 폴백 결과 'AI 생성' 라벨
+- [ ] TRELLIS 폴백 확인 다이얼로그
 - [ ] HF Space env 활성화 도구
 
 ## 📈 품질 경로
