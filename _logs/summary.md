@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 37 (배포 중)
-**Current deployed commit**: 3d52f31 (+round 37 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
+**Round**: 38 (배포 중)
+**Current deployed commit**: 68f20d9 (+round 38 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -276,11 +276,19 @@
     - R34 countdown 시작 시 warningHaptic() — 화면 안 보고 있어도 인지
     - **모든 종류의 에러에 actionable fallback (white screen 0)**
 
-## 📋 Round 38 예정
+## 🎯 Round 38 구현된 것 (Vercel 자동배포)
+39. **PWA manifest** (`apps/web/app/manifest.ts` 신규)
+    - Next.js 14 라우트 핸들러로 `/manifest.webmanifest` 자동 노출
+    - standalone display + portrait + start_url=/capture
+    - shortcuts: [촬영 시작] [예시 모델]
+    - icons: icon.svg + favicon.ico + apple-icon
+    - **모바일 사용자가 홈 화면에 추가 → 풀스크린 native 앱 같은 capture 경험**
+
+## 📋 Round 39 예정
+- [ ] Service worker (offline asset caching)
+- [ ] PWA install prompt UI
 - [ ] VGGT 통계 확장 패널
 - [ ] 토글 트랜지션
-- [ ] 자동 학습 매초 tick 진동
-- [ ] PWA / service worker
 
 ## 📈 품질 경로
 | 경로 | 상태 | 비용 |
