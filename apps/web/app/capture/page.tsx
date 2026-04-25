@@ -116,6 +116,8 @@ export default function CapturePage() {
     avgFeatures: number;
   } | null>(null);
   const [envBannerDismissed, setEnvBannerDismissed] = useState(false);
+  // round 17 — 환경 OK 시 잠시 (2.5초) "✓" 배지 노출 (silent pass → 명시적 피드백)
+  const [envOkVisible, setEnvOkVisible] = useState(false);
   // 자동 모드 상태: 직전 섹터 + 마지막 자동 shot 시각 (debounce)
   const prevSectorRef = useRef<number | null>(null);
   const lastAutoShotAtRef = useRef<number>(0);
@@ -287,6 +289,15 @@ export default function CapturePage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cameraActive, shots.length]);
+
+  // round 17 — 환경 체크 완료 + issues 없을 때 잠깐 ✓ 배지 표시 (2.5초)
+  useEffect(() => {
+    if (envCheck?.state !== 'ready') return;
+    if (envCheck.issues.length > 0) return;
+    setEnvOkVisible(true);
+    const t = window.setTimeout(() => setEnvOkVisible(false), 2500);
+    return () => window.clearTimeout(t);
+  }, [envCheck]);
 
   // DeviceMotion: 가속도 → 누적 이동량 (translation 감지)
   // 진짜 이동 거리는 double integration 이라 오차 크지만
@@ -745,6 +756,19 @@ export default function CapturePage() {
               {orientationOK === false && (
                 <div className="absolute right-5 top-5 rounded-md bg-amber-500/20 px-3 py-1.5 text-[10px] text-amber-100">
                   💻 PC 모드 — 카메라/대상을 직접 움직여 각도 바꿔주세요
+                </div>
+              )}
+
+              {/* round 17: 환경 OK ✓ 배지 (2.5초) — 사용자에게 silent pass 명시 */}
+              {envOkVisible && shots.length === 0 && envCheck && (
+                <div className="pointer-events-none absolute left-1/2 top-20 -translate-x-1/2 animate-fade-in">
+                  <div className="flex items-center gap-2 rounded-md border border-accent/40 bg-black/85 px-3 py-1.5 text-xs text-white shadow-lg backdrop-blur-sm">
+                    <span className="text-accent">✓</span>
+                    <span>
+                      환경 OK · 밝기 {envCheck.avgBrightness.toFixed(0)} ·
+                      특징점 {envCheck.avgFeatures.toFixed(0)}
+                    </span>
+                  </div>
                 </div>
               )}
 
