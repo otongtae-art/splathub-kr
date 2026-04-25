@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 46 (배포 중)
-**Current deployed commit**: f51c67b (+round 46 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
+**Round**: 47 (worker only)
+**Current deployed commit**: a4c4f3b (R46 까지 frontend 배포) / `04a763b @ HF Space` (backend R4+R47 대기)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -339,10 +339,17 @@
     - 해석 안내: '평탄도 < 15% = monster 의심, 30%+ = 정상'
     - **사용자 자가 진단 + 개선 방향 결정 가능**
 
-## 📋 Round 47 예정
-- [ ] Service worker (offline)
-- [ ] 토글 트랜지션
-- [ ] VGGT vs TRELLIS stats 비교
+## 🎯 Round 47 구현된 것 (worker only, HF Space 수동 deploy 대기)
+48. **/api/vggt per-request prediction_mode 오버라이드** (`worker/hf-space/app.py`)
+    - Form 파라미터 `prediction_mode`, `conf_thres` 추가
+    - 우선순위: 인자 > env > 기본 (Pointmap Branch / 3)
+    - **R4 backend 기능을 env 변수 설정 없이 per-request 활성화 가능**
+    - 다음 deploy.ps1 실행 시 R4 + R47 동시 활성화
+
+## 📋 Round 48 예정
+- [ ] Worker /api/config (활성 모드 expose)
+- [ ] Worker timeout/retry 강화
+- [ ] Service worker
 
 ## 📈 품질 경로
 | 경로 | 상태 | 비용 |

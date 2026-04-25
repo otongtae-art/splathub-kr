@@ -36,7 +36,7 @@ import traceback
 from pathlib import Path
 
 import gradio as gr
-from fastapi import FastAPI, File, HTTPException, UploadFile, Response
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Response
 from fastapi.middleware.cors import CORSMiddleware
 from gradio_client import Client, handle_file
 
@@ -400,12 +400,22 @@ def convert_pointcloud_to_mesh(glb_in: str) -> str:
         return glb_in
 
 
-def convert_images_to_glb_vggt(image_paths: list[str]) -> str:
+def convert_images_to_glb_vggt(
+    image_paths: list[str],
+    prediction_mode_override: str | None = None,
+    conf_thres_override: float | None = None,
+) -> str:
     """여러 장 사진 → VGGT photogrammetry → Poisson mesh → .glb.
 
     VGGT (Meta, CVPR 2025) 는 N장의 unposed 사진을 받아 카메라 포즈 + 3D
     pointcloud 를 한 번의 forward pass 로 추정. 10장 ~30초 on H200.
     이후 Poisson reconstruction 으로 pointcloud → 연속 mesh 변환 (~5-10초).
+
+    Args:
+      image_paths: 처리할 이미지 파일 경로 리스트
+      prediction_mode_override: per-request 모드 override (round 47).
+        None 이면 env VGGT_PREDICTION_MODE 또는 'Pointmap Branch' 기본.
+      conf_thres_override: per-request 임계값 override (round 47).
 
     반환: .glb 파일 경로 (mesh, 또는 Poisson 실패 시 pointcloud)
     """
@@ -426,12 +436,21 @@ def convert_images_to_glb_vggt(image_paths: list[str]) -> str:
             raise RuntimeError("VGGT upload did not return target_dir")
         logger.info("  target_dir=%s", target_dir)
 
+        # round 47: 우선순위 — 인자 override > env > 기본값.
         # Pointmap Branch: VGGT 가 모든 뷰를 공유 3D 공간으로 직접 회귀.
         # Depthmap 모드는 per-view depth 를 noisy 카메라 포즈로 unproject 하기에
         # 핸드헬드 촬영에서 평면 layer 분리("monster") artifact 가 발생.
         # conf_thres 3 = 공식 Space 기본값 (50 은 너무 공격적이라 sparse 하게 보임).
-        prediction_mode = os.getenv("VGGT_PREDICTION_MODE", "Pointmap Branch")
-        conf_thres = float(os.getenv("VGGT_CONF_THRES", "3"))
+        prediction_mode = (
+            prediction_mode_override
+            if prediction_mode_override
+            else os.getenv("VGGT_PREDICTION_MODE", "Pointmap Branch")
+        )
+        conf_thres = (
+            conf_thres_override
+            if conf_thres_override is not None
+            else float(os.getenv("VGGT_CONF_THRES", "3"))
+        )
 
         logger.info(
             "[vggt 2/2] reconstructing... mode=%s conf=%.1f",
@@ -498,14 +517,24 @@ def health():
 
 
 @api.post("/api/vggt")
-async def vggt_endpoint(images: list[UploadFile] = File(...)):
+async def vggt_endpoint(
+    images: list[UploadFile] = File(...),
+    prediction_mode: str | None = Form(default=None),
+    conf_thres: float | None = Form(default=None),
+):
     """여러 장 사진 → VGGT photogrammetry → .glb 바이너리.
 
-    입력: multipart/form-data 의 `images` 필드 (2~30장 권장)
+    입력:
+      - multipart/form-data 의 `images` 필드 (2~30장 권장)
+      - prediction_mode: 'Pointmap Branch' (기본) | 'Depthmap and Camera Branch'
+        — round 47: per-request override (env 기본값 우회)
+      - conf_thres: float (기본 3) — round 47: per-request override
+
     출력: model/gltf-binary (pointcloud + camera poses)
 
     예:
-      curl -X POST .../api/vggt -F "images=@a.jpg" -F "images=@b.jpg" -F "images=@c.jpg"
+      curl -X POST .../api/vggt -F "images=@a.jpg" -F "images=@b.jpg"
+      curl ... -F "prediction_mode=Pointmap Branch" -F "conf_thres=3"
     """
     if len(images) < 2:
         raise HTTPException(
@@ -529,7 +558,11 @@ async def vggt_endpoint(images: list[UploadFile] = File(...)):
                 f.write(await upload.read())
             tmp_paths.append(path)
 
-        glb_path = convert_images_to_glb_vggt(tmp_paths)
+        glb_path = convert_images_to_glb_vggt(
+            tmp_paths,
+            prediction_mode_override=prediction_mode,
+            conf_thres_override=conf_thres,
+        )
         with open(glb_path, "rb") as f:
             glb_bytes = f.read()
         return Response(

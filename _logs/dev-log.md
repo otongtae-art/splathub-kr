@@ -51,4 +51,5 @@
 [2026-04-25T05:18+09:00] [round 43] [deployed] iOS 자이로 권한 거부 안내 — R42 후속. motionPermission 4-state (unknown/granted/denied/unsupported) 추적, denied 시 카메라 화면 우상단에 '📐 자이로 권한 거부됨 — 자동 촬영/미니맵/자동 학습 비활성. iOS 설정 → Safari → 동작과 방향 → 허용' banner. commit 97b42f7
 [2026-04-25T05:26+09:00] [round 44] [deployed] 🚀 hands-free 모드 프리셋 — 자동 촬영(R9) + 사운드(R22) + 자동 학습(R34) 3개를 1-클릭으로 모두 ON. 셋 다 켜져 있으면 버튼 숨김. user gesture 안에서 enableShutterSound 호출 (iOS unlock). commit 4ff6a33
 [2026-04-25T05:34+09:00] [round 45] [deployed] 첫 방문자 ✨ 추천 배지 — localStorage 'splathub:capture-seen' 안 있으면 R44 hands-free 버튼에 pulse + glow + '✨ 추천' 배지. 클릭 또는 첫 shot 시 영구 dismiss. commit f51c67b
-[2026-04-25T05:42+09:00] [round 46] [pushed-not-deployed] VGGT 통계 확장 패널 — '📊 자세히' details. 원본/유지 점, bbox, 평탄도, 각도, 흐림 등 전체 metrics + 해석. commit a4c4f3b. **Vercel free tier 100 deploys/day 한도 도달 → 24h 후 또는 user 가 vercel --prod 실행 시 활성화. 다음 라운드부터 cadence 30분으로 변경.**
+[2026-04-25T05:42+09:00] [round 46] [pushed] VGGT 통계 확장 패널 — '📊 자세히' details. 원본/유지 점, bbox, 평탄도, 각도, 흐림 등 전체 metrics + 해석. commit a4c4f3b. (Vercel auto-deploy 가 catch up — 새 chunk hash 34371a8d 확인됨)
+[2026-04-25T06:18+09:00] [round 47] [worker-only] /api/vggt 엔드포인트에 prediction_mode/conf_thres Form param override 추가 — 우선순위 인자>env>기본. R4 의 backend 기능을 per-request 호출 로 활성화 가능 (env 변수 설정 불필요). HF Space 수동 redeploy 시 R4 와 함께 활성화
