@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
 
 const SITE_URL = 'https://splathub.vercel.app';
 
@@ -255,7 +256,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {/* round 52: Service Worker 자동 등록 (production only) */}
+        <ServiceWorkerRegister />
+        {children}
+      </body>
     </html>
   );
 }

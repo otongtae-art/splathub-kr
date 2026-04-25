@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 51 (frontend, R47 deploy 후 자동 활성)
-**Current deployed commit**: a4c4f3b (R46 까지 frontend 배포 / R49 + R51 frontend pending) / `04a763b @ HF Space` (backend R4+R47+R48+R50 대기)
+**Round**: 52 (frontend pushed)
+**Current deployed commit**: a4c4f3b (R46 까지 frontend 배포 / R49+R51+R52 pending) / `04a763b @ HF Space` (backend R4+R47+R48+R50 대기)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -371,10 +371,19 @@
     - R47 미배포 worker 는 form 필드 무시 (backward compat)
     - **R47+R4 deploy 후 env 의존 zero — frontend 가 항상 Pointmap 강제**
 
-## 📋 Round 52 예정
+## 🎯 Round 52 구현된 것 (frontend, Vercel deploy 후 활성)
+53. **Service worker for PWA** (`apps/web/public/sw.js`, `components/ServiceWorkerRegister.tsx`)
+    - cache-first for /_next/static (immutable hash URL) + critical assets
+    - network-first for HTML pages (fallback to cache on offline)
+    - /api/* skip (dynamic), other origin pass-through
+    - dev 환경 skip (HMR 충돌 방지)
+    - stale-while-revalidate 백그라운드 갱신
+    - **반복 방문 빠른 로딩 + offline graceful + Lighthouse PWA 충족**
+
+## 📋 Round 53 예정
 - [ ] A/B 토글 (Pointmap vs Depthmap)
-- [ ] Service worker
-- [ ] VGGT metadata sidecar JSON
+- [ ] VGGT metadata sidecar
+- [ ] 토글 트랜지션
 
 ## 📈 품질 경로
 | 경로 | 상태 | 비용 |
