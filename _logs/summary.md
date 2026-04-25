@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 11 (배포 중)
-**Current deployed commit**: d3a0934 (+round 11 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
+**Round**: 12 (배포 중)
+**Current deployed commit**: 28b3bd5 (+round 12 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -102,10 +102,18 @@
     - sharpness<50 + brightness<35 둘 다 → '흐림 + 어두움' 메시지
     - **R7 (motion blur) 의 사각지대인 ISO noise 입력 품질 보강**
 
-## 📋 Round 12 예정
-- [ ] Auto-capture 햅틱 진동 (Vibration API)
-- [ ] Multi-shot burst (1셔터 → 3장 → sharp 1장 유지)
-- [ ] 미니맵에 '추천 다음 위치' 화살표
+## 🎯 Round 12 구현된 것 (Vercel 자동배포)
+13. **Multi-shot burst (auto-capture)** (`apps/web/app/capture/page.tsx`)
+    - Auto-capture 빈 섹터 진입 → 3프레임 70ms 간격 → sharpness 최대 채택
+    - Apple Object Capture 패턴
+    - Manual shutter 는 단일 프레임 (응답성 유지)
+    - 토글 라벨: "🎬 자동 촬영 — 빈 섹터 진입 시 3장 burst (sharp 1장 채택)"
+    - **사용자 부담 0, 흐림 사진 발생률 대폭 감소**
+
+## 📋 Round 13 예정
+- [ ] 햅틱 진동 (Vibration API)
+- [ ] 미니맵 '추천 다음 위치' 화살표
+- [ ] 결과 페이지에 R7 dropped 사진 미리보기
 - [ ] HF Space env 활성화 도구
 
 ## 📈 품질 경로

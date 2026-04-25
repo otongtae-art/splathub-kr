@@ -242,8 +242,12 @@ export default function CapturePage() {
    * 중요: 이미지는 **크롭하지 않음**. VGGT photogrammetry 는 배경/맥락을
    * 사용해 카메라 위치를 추정하므로 전체 프레임 필요. 박스는 사용자가
    * 객체를 프레이밍하는 가이드일 뿐 크롭하지 않음.
+   *
+   * round 12: opts.burst=true 이면 3 프레임을 70ms 간격으로 캡처해
+   * 가장 sharp 한 프레임을 채택 (Apple Object Capture 패턴).
+   * Auto-capture 에서 활성화 → 250ms 추가 latency 지만 사용자 인지 X.
    */
-  const captureShot = useCallback(async () => {
+  const captureShot = useCallback(async (opts: { burst?: boolean } = {}) => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
@@ -252,28 +256,31 @@ export default function CapturePage() {
     const vh = video.videoHeight;
     if (!vw || !vh) return;
 
-    // 전체 프레임을 canvas 에 그림 (크롭 X)
-    canvas.width = vw;
-    canvas.height = vh;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.drawImage(video, 0, 0);
-
-    // 특징점은 박스 영역에서 검출 (시각 피드백용)
-    // — 저장되는 이미지는 전체 프레임, 검출만 박스 영역
+    // 박스 영역 좌표 계산 — feature/sharpness/brightness 측정용
     const shortSide = Math.min(vw, vh);
     const boxSize = shortSide * boxRatio;
     const cropSize = Math.min(shortSide, boxSize * CROP_PADDING_RATIO);
     const cropX = (vw - cropSize) / 2;
     const cropY = (vh - cropSize) / 2;
 
-    // feature 검출용 임시 canvas
-    const featureCanvas = document.createElement('canvas');
-    featureCanvas.width = cropSize;
-    featureCanvas.height = cropSize;
-    const fctx = featureCanvas.getContext('2d');
-    if (fctx) {
-      fctx.drawImage(
+    // 프레임 캡처 헬퍼 — full-res + thumb 동시에
+    const captureOneFrame = (): {
+      full: HTMLCanvasElement;
+      thumb: HTMLCanvasElement;
+    } | null => {
+      const full = document.createElement('canvas');
+      full.width = vw;
+      full.height = vh;
+      const fullCtx = full.getContext('2d');
+      if (!fullCtx) return null;
+      fullCtx.drawImage(video, 0, 0);
+
+      const thumb = document.createElement('canvas');
+      thumb.width = cropSize;
+      thumb.height = cropSize;
+      const thumbCtx = thumb.getContext('2d');
+      if (!thumbCtx) return null;
+      thumbCtx.drawImage(
         video,
         cropX,
         cropY,
@@ -284,15 +291,45 @@ export default function CapturePage() {
         cropSize,
         cropSize,
       );
+      return { full, thumb };
+    };
+
+    // burst=true → 3 프레임 70ms 간격, 가장 sharp 한 것 채택
+    // burst=false → 단일 프레임 (manual shutter, 즉시 응답)
+    const FRAME_COUNT = opts.burst ? 3 : 1;
+    const FRAME_INTERVAL = 70;
+    let bestSharpness = -1;
+    let bestFrame: { full: HTMLCanvasElement; thumb: HTMLCanvasElement } | null =
+      null;
+
+    for (let i = 0; i < FRAME_COUNT; i++) {
+      if (i > 0) {
+        await new Promise<void>((resolve) =>
+          setTimeout(resolve, FRAME_INTERVAL),
+        );
+      }
+      const frame = captureOneFrame();
+      if (!frame) continue;
+      const s = computeSharpness(frame.thumb);
+      if (s > bestSharpness) {
+        bestSharpness = s;
+        bestFrame = frame;
+      }
     }
-    const features = fctx ? detectFeatures(featureCanvas, { max: 120 }) : [];
-    // sharpness 는 박스 영역 (객체) 기준으로 측정 — 배경 흐림은 무관
-    const sharpness = fctx ? computeSharpness(featureCanvas) : 0;
-    // brightness — 어두운 환경 감지 (round 11)
-    const brightness = fctx ? computeBrightness(featureCanvas) : 0;
+    if (!bestFrame) return;
+
+    // 채택된 프레임으로 features/brightness/blob 계산
+    const features = detectFeatures(bestFrame.thumb, { max: 120 });
+    const sharpness = bestSharpness; // 이미 계산됨
+    const brightness = computeBrightness(bestFrame.thumb);
+
+    // canvasRef 에 표시는 안 하지만 호환 위해 채택 프레임 복사
+    canvas.width = vw;
+    canvas.height = vh;
+    canvas.getContext('2d')?.drawImage(bestFrame.full, 0, 0);
 
     const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.92),
+      bestFrame!.full.toBlob((b) => resolve(b), 'image/jpeg', 0.92),
     );
     if (!blob) return;
 
@@ -369,7 +406,9 @@ export default function CapturePage() {
     setAutoWaiting(false);
 
     lastAutoShotAtRef.current = now;
-    void captureShot();
+    // round 12: auto-capture 는 burst=true (3프레임 → 가장 sharp 채택).
+    // 사용자가 셔터 안 누르므로 250ms 추가 지연 인지 X.
+    void captureShot({ burst: true });
   }, [
     autoCapture,
     cameraActive,
@@ -740,7 +779,7 @@ export default function CapturePage() {
               </button>
               <button
                 type="button"
-                onClick={captureShot}
+                onClick={() => captureShot()}
                 aria-label="촬영"
                 className={`flex h-16 w-16 items-center justify-center rounded-full border-2 bg-white/10 transition-transform active:scale-90 ${
                   autoCapture
@@ -781,7 +820,7 @@ export default function CapturePage() {
                     className="h-3.5 w-3.5 cursor-pointer accent-accent"
                   />
                   <span>
-                    🎬 <b>자동 촬영</b> — 빈 섹터에 들어가면 자동 셔터
+                    🎬 <b>자동 촬영</b> — 빈 섹터 진입 시 3장 burst (sharp 1장 채택)
                   </span>
                 </label>
                 {autoCapture && autoWaiting && (
