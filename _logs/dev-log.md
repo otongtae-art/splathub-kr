@@ -49,4 +49,5 @@
 [2026-04-25T05:02+09:00] [round 41] [deployed] 카메라 권한 거부 actionable 복구 — 5종 분류 (NotAllowed/NotFound/NotReadable/Overconstrained/그외) + 브라우저별 (iOS/Firefox/일반) 복구 안내. 'whitespace-pre-line' 줄바꿈 보존 + [다시 시도][페이지 새로고침] 버튼. commit b97a6fb
 [2026-04-25T05:10+09:00] [round 42] [deployed] iOS 13+ DeviceMotion/Orientation 권한 요청 (BUG FIX) — startCamera() 안에서 명시 호출. 이전엔 silent 무시되어 R6 미니맵, R9 auto-capture, R10 motion gate, R34 자동 학습이 모두 iOS Safari 에서 silently 비활성. 큰 UX 손실 회복. commit 761b7a3
 [2026-04-25T05:18+09:00] [round 43] [deployed] iOS 자이로 권한 거부 안내 — R42 후속. motionPermission 4-state (unknown/granted/denied/unsupported) 추적, denied 시 카메라 화면 우상단에 '📐 자이로 권한 거부됨 — 자동 촬영/미니맵/자동 학습 비활성. iOS 설정 → Safari → 동작과 방향 → 허용' banner. commit 97b42f7
-[2026-04-25T05:26+09:00] [round 44] [deploying] 🚀 hands-free 모드 프리셋 — 자동 촬영(R9) + 사운드(R22) + 자동 학습(R34) 3개를 1-클릭으로 모두 ON. 셋 다 켜져 있으면 버튼 숨김. user gesture 안에서 enableShutterSound 호출 (iOS unlock)
+[2026-04-25T05:26+09:00] [round 44] [deployed] 🚀 hands-free 모드 프리셋 — 자동 촬영(R9) + 사운드(R22) + 자동 학습(R34) 3개를 1-클릭으로 모두 ON. 셋 다 켜져 있으면 버튼 숨김. user gesture 안에서 enableShutterSound 호출 (iOS unlock). commit 4ff6a33
+[2026-04-25T05:34+09:00] [round 45] [deploying] 첫 방문자 ✨ 추천 배지 — localStorage 'splathub:capture-seen' 안 있으면 R44 hands-free 버튼에 pulse + glow + '✨ 추천' 배지. 클릭 또는 첫 shot 시 영구 dismiss

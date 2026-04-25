@@ -130,6 +130,8 @@ export default function CapturePage() {
   const [motionPermission, setMotionPermission] = useState<
     'unknown' | 'granted' | 'denied' | 'unsupported'
   >('unknown');
+  // round 45 — 첫 방문자에게 hands-free 프리셋 ✨ 추천 (localStorage 영구 저장)
+  const [isFirstVisit, setIsFirstVisit] = useState(false);
   // round 28+29 — IndexedDB 에 남은 이전 세션 (이어가기 + 미리보기 thumbnail)
   const [pastSession, setPastSession] = useState<{
     id: string;
@@ -317,6 +319,17 @@ export default function CapturePage() {
     }, 200);
     return () => window.clearInterval(id);
   }, [cameraActive]);
+
+  // round 45 — 첫 방문 detection (localStorage)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const seen = localStorage.getItem('splathub:capture-seen');
+      if (!seen) setIsFirstVisit(true);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   // round 28+29 — 이전 세션 감지 (mount 1회) + 미리보기 thumbnail URL
   useEffect(() => {
@@ -602,6 +615,16 @@ export default function CapturePage() {
       timestamp: Date.now(),
     };
     setShots((prev) => [...prev, shot]);
+
+    // round 45: 첫 shot 찍으면 추천 배지 dismiss (manual 사용자도)
+    if (isFirstVisit) {
+      setIsFirstVisit(false);
+      try {
+        localStorage.setItem('splathub:capture-seen', '1');
+      } catch {
+        /* ignore */
+      }
+    }
 
     // 애니메이션용으로 박스 기준 좌표를 화면 좌표로 변환
     // (feature 는 cropSize 기준 좌표, 화면에서는 박스 + 패딩 영역에 표시)
@@ -1271,7 +1294,7 @@ export default function CapturePage() {
               </button>
             </div>
 
-            {/* round 44: 🚀 hands-free 프리셋 — 자동 촬영 + 사운드 + 자동 학습 1-클릭 */}
+            {/* round 44+45: 🚀 hands-free 프리셋 + 첫 방문자 ✨ 추천 배지 */}
             {hasGyro && !(autoCapture && shutterAudio && autoTrainOnTarget) && (
               <div className="mx-auto mt-3 flex max-w-md items-center justify-center">
                 <button
@@ -1284,9 +1307,25 @@ export default function CapturePage() {
                     setShutterAudio(true);
                     enableShutterSound();
                     setAutoTrainOnTarget(true);
+                    // round 45: 첫 방문 표시 영구 저장
+                    setIsFirstVisit(false);
+                    try {
+                      localStorage.setItem('splathub:capture-seen', '1');
+                    } catch {
+                      /* ignore */
+                    }
                   }}
-                  className="tactile inline-flex items-center gap-1.5 rounded-md border border-accent/40 bg-accent/[0.08] px-3 py-1.5 text-xs font-medium text-accent transition-colors hover:bg-accent/[0.16]"
+                  className={`tactile inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+                    isFirstVisit
+                      ? 'animate-pulse border-accent bg-accent/[0.16] text-accent shadow-[0_0_12px_rgba(16,185,129,0.4)] hover:bg-accent/[0.22]'
+                      : 'border-accent/40 bg-accent/[0.08] text-accent hover:bg-accent/[0.16]'
+                  }`}
                 >
+                  {isFirstVisit && (
+                    <span className="rounded bg-accent/30 px-1 text-[9px] font-bold tracking-wider">
+                      ✨ 추천
+                    </span>
+                  )}
                   🚀 hands-free 모드 — 자동 촬영 + 사운드 + 자동 학습 한 번에
                 </button>
               </div>

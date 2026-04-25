@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 44 (배포 중)
-**Current deployed commit**: 97b42f7 (+round 44 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
+**Round**: 45 (배포 중)
+**Current deployed commit**: 4ff6a33 (+round 45 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -326,8 +326,14 @@
     - user gesture 안에서 enableShutterSound() 호출 (iOS unlock)
     - **3 클릭 → 1 클릭, 학습 비용 ↓, hands-free 채택률 ↑**
 
-## 📋 Round 45 예정
-- [ ] Service worker (offline)
+## 🎯 Round 45 구현된 것 (Vercel 자동배포)
+46. **첫 방문자 ✨ 추천 배지** (`apps/web/app/capture/page.tsx`)
+    - localStorage 'splathub:capture-seen' 안 있으면 R44 hands-free 버튼에 pulse + glow + '✨ 추천' 배지
+    - 클릭 또는 첫 captureShot 시 영구 dismiss
+    - **첫 방문자가 hands-free 모드 발견률 ↑ → R9-R34 자동화 가치 실현**
+
+## 📋 Round 46 예정
+- [ ] Service worker
 - [ ] VGGT 통계 확장 패널
 - [ ] 토글 트랜지션
 
