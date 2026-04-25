@@ -438,6 +438,44 @@ export default function CaptureTrainPage() {
               onStats={setViewerStats}
             />
           </ErrorBoundary>
+          {/* round 46: VGGT 통계 확장 패널 — VGGT 모드일 때만 (TRELLIS 는 무관) */}
+          {viewerStats && activeView === 'vggt' && (
+            <details className="absolute right-4 top-4 max-w-xs animate-fade-in">
+              <summary className="tactile cursor-pointer rounded-md border border-base-200 bg-base-0/90 px-2 py-1 text-[10px] text-base-600 shadow-sm backdrop-blur hover:border-base-300 hover:text-base-900">
+                📊 자세히
+              </summary>
+              <div className="mt-1 flex flex-col gap-1.5 rounded-md border border-base-200 bg-base-0/95 p-3 text-[11px] text-base-700 shadow-lg backdrop-blur">
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1 font-mono">
+                  <span className="text-base-500">원본 점</span>
+                  <span className="text-right">{viewerStats.pointsCount.toLocaleString()}</span>
+                  <span className="text-base-500">유지 (5-95%)</span>
+                  <span className="text-right">{viewerStats.retainedCount.toLocaleString()}</span>
+                  <span className="text-base-500">bbox max</span>
+                  <span className="text-right">{viewerStats.bboxDim.toFixed(2)} m</span>
+                  <span className="text-base-500">bbox min (depth)</span>
+                  <span className="text-right">{viewerStats.depthSpread.toFixed(2)} m</span>
+                  <span className="text-base-500">평탄도</span>
+                  <span className="text-right">{(viewerStats.flatness * 100).toFixed(1)} %</span>
+                  {meta?.sectorsCovered !== undefined && (
+                    <>
+                      <span className="text-base-500">각도 커버</span>
+                      <span className="text-right">{meta.sectorsCovered}/36 ({Math.round(meta.sectorsCovered / 36 * 100)}%)</span>
+                    </>
+                  )}
+                  {meta?.droppedBlurry !== undefined && (
+                    <>
+                      <span className="text-base-500">사진 (흐림 제외)</span>
+                      <span className="text-right">{shots.length} ({meta.droppedBlurry} drop)</span>
+                    </>
+                  )}
+                </div>
+                <p className="border-t border-base-200 pt-1.5 text-[10px] leading-snug text-base-500">
+                  평탄도 &lt; 15% = 평면 layer 의심 (monster). 30%+ = 정상 객체.
+                </p>
+              </div>
+            </details>
+          )}
+
           {/* round 27+39+40: 다운로드 가이드 + PWA 설치 (Android prompt + iOS 수동 안내) */}
           {(showDownloadGuide ||
             (pwa.canInstall && !pwa.installed && !pwa.dismissed) ||

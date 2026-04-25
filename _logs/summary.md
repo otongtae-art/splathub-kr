@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 45 (배포 중)
-**Current deployed commit**: 4ff6a33 (+round 45 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
+**Round**: 46 (배포 중)
+**Current deployed commit**: f51c67b (+round 46 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -332,10 +332,17 @@
     - 클릭 또는 첫 captureShot 시 영구 dismiss
     - **첫 방문자가 hands-free 모드 발견률 ↑ → R9-R34 자동화 가치 실현**
 
-## 📋 Round 46 예정
-- [ ] Service worker
-- [ ] VGGT 통계 확장 패널
+## 🎯 Round 46 구현된 것 (Vercel 자동배포)
+47. **VGGT 통계 확장 패널 (📊 자세히)** (`apps/web/app/capture/train/page.tsx`)
+    - 결과 화면 우상단 details element
+    - 풀 metrics: 원본/유지 점, bbox max/min, 평탄도%, 각도 커버, 흐림 제외 수
+    - 해석 안내: '평탄도 < 15% = monster 의심, 30%+ = 정상'
+    - **사용자 자가 진단 + 개선 방향 결정 가능**
+
+## 📋 Round 47 예정
+- [ ] Service worker (offline)
 - [ ] 토글 트랜지션
+- [ ] VGGT vs TRELLIS stats 비교
 
 ## 📈 품질 경로
 | 경로 | 상태 | 비용 |
