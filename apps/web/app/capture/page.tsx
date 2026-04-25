@@ -79,6 +79,8 @@ export default function CapturePage() {
   const [shots, setShots] = useState<Shot[]>([]);
   const [flashFeatures, setFlashFeatures] = useState<FeaturePoint[] | null>(null);
   const [flashPhoto, setFlashPhoto] = useState<string | null>(null);
+  // 즉시 흐림 경고 (round 8) — 방금 찍은 사진이 절대 임계값 미만
+  const [blurToast, setBlurToast] = useState<{ id: string; sharpness: number } | null>(null);
   const [orientationOK, setOrientationOK] = useState<boolean | null>(null);
   const [done, setDone] = useState(false);
   // 타겟 박스 크기 비율. 0.3 = 작은 물체, 0.85 = 큰 물체. 기본 40%.
@@ -291,6 +293,15 @@ export default function CapturePage() {
       setFlashFeatures(null);
       setFlashPhoto(null);
     }, 800);
+
+    // 즉시 흐림 경고 — 절대 임계값 (50) 미만이면 toast 표시.
+    // round 7 의 median 기반 필터는 borderline 처리, 이건 명백한 흐림만.
+    if (sharpness < 50) {
+      setBlurToast({ id: shot.id, sharpness });
+      setTimeout(() => {
+        setBlurToast((cur) => (cur?.id === shot.id ? null : cur));
+      }, 3500);
+    }
   }, [boxRatio]);
 
   const removeShot = useCallback((id: string) => {
@@ -520,6 +531,31 @@ export default function CapturePage() {
               {orientationOK === false && (
                 <div className="absolute right-5 top-5 rounded-md bg-amber-500/20 px-3 py-1.5 text-[10px] text-amber-100">
                   💻 PC 모드 — 카메라/대상을 직접 움직여 각도 바꿔주세요
+                </div>
+              )}
+
+              {/* 즉시 흐림 경고 toast — sharpness < 50 시 3.5초 표시 */}
+              {blurToast && (
+                <div
+                  role="alert"
+                  className="pointer-events-auto absolute left-1/2 top-20 -translate-x-1/2 animate-fade-in"
+                >
+                  <div className="flex items-center gap-3 rounded-md border border-danger/60 bg-black/85 px-3 py-2 text-xs text-white shadow-lg backdrop-blur-sm">
+                    <span className="text-danger">⚠</span>
+                    <span>
+                      <b>흐림 감지</b> · 자동 제외 가능성 높음
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        removeShot(blurToast.id);
+                        setBlurToast(null);
+                      }}
+                      className="tactile rounded border border-danger/40 px-2 py-0.5 text-[10px] font-medium text-danger hover:bg-danger/10"
+                    >
+                      지우기
+                    </button>
+                  </div>
                 </div>
               )}
 

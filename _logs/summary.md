@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 7 (배포 중)
-**Current deployed commit**: 8ab954d (+round 7 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
+**Round**: 8 (배포 중)
+**Current deployed commit**: d0183f6 (+round 8 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -65,11 +65,18 @@
    - train 페이지에 "🌀 흐림 N장 자동 제외" 표시
    - **개별 사진 품질 필터 — VGGT 포즈 추정 안정화**
 
-## 📋 Round 8 예정
-- [ ] Auto-capture mode (10° + 정지 시 자동 셔터, R6 + R7 결합)
-- [ ] 캡처 직후 즉시 흐림 경고 ("이 사진 흐립니다 — 다시?")
-- [ ] HF Space env var 설정 가이드 / 자동화 도구
-- [ ] VGGT-X (sparse-view splat) — R4 배포 후
+## 🎯 Round 8 구현된 것 (Vercel 자동배포)
+9. **즉시 흐림 경고 toast** (`apps/web/app/capture/page.tsx`)
+   - sharpness < 50 (절대 임계값) → captureShot 직후 화면 상단에 3.5초 toast
+   - "⚠ 흐림 감지 · 자동 제외 가능성 높음 [지우기]"
+   - [지우기] → removeShot(id) — 다음 사진 찍기 전 즉시 재촬영 결정
+   - **Round 7 reactive 필터를 proactive UX 로 보강**
+
+## 📋 Round 9 예정
+- [ ] Auto-capture mode (10° + 정지 시 자동 셔터, R6/R7/R8 결합)
+- [ ] HF Space env var 활성화 도구 (R4 unblock)
+- [ ] 셔터 버튼에 실시간 sharpness meter (찍기 전 미리보기)
+- [ ] Capture "탁자 사용" 가이드 카피
 
 ## 📈 품질 경로
 | 경로 | 상태 | 비용 |
