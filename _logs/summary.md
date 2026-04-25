@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 21 (배포 중)
-**Current deployed commit**: 4022610 (+round 21 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
+**Round**: 22 (배포 중)
+**Current deployed commit**: eee4806 (+round 22 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -169,10 +169,17 @@
     - emerald 테두리 + glow shadow + tooltip ("최고 sharp · 점수")
     - **사용자가 자신의 best/worst 사진 즉시 인지 + R20 TRELLIS 폴백 사용 사진 미리 시각화**
 
-## 📋 Round 22 예정
-- [ ] 셔터 흰 플래시 오버레이
+## 🎯 Round 22 구현된 것 (Vercel 자동배포)
+23. **셔터 사운드 (iOS 보완)** (`apps/web/lib/haptics.ts`, `app/capture/page.tsx`)
+    - Web Audio API 1500Hz 50ms tick (모든 브라우저 동작, iOS 포함)
+    - 토글 ON 시 user gesture 안에서 AudioContext unlock
+    - default OFF (opt-in)
+    - **R14 햅틱이 안 되는 iOS Safari 환경에서 셔터 인지 가능**
+
+## 📋 Round 23 예정
+- [ ] 셔터 흰 플래시 오버레이 (시각 피드백 트리오)
 - [ ] VGGT 결과 통계 시각화 (R5 stats 패널)
-- [ ] iOS 용 Web Audio 셔터 사운드 (Vibration 미지원 보완)
+- [ ] 환경 사전 체크 진행 indicator
 - [ ] HF Space env 활성화 도구
 
 ## 📈 품질 경로

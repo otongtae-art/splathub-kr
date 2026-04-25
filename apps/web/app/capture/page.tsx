@@ -31,7 +31,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { saveCaptures } from '@/lib/captureStore';
 import { detectFeatures, type FeaturePoint } from '@/lib/features';
-import { shutterHaptic, warningHaptic } from '@/lib/haptics';
+import {
+  disableShutterSound,
+  enableShutterSound,
+  playShutterSound,
+  shutterHaptic,
+  warningHaptic,
+} from '@/lib/haptics';
 import {
   classifyBlurry,
   computeBrightness,
@@ -108,6 +114,8 @@ export default function CapturePage() {
   const [autoWaiting, setAutoWaiting] = useState(false);
   // round 14 — manual shutter 도 burst 활성화 (opt-in, 250ms 지연 vs 품질)
   const [manualBurst, setManualBurst] = useState(false);
+  // round 22 — 셔터 사운드 (iOS 등 Vibration 미지원 환경 보완)
+  const [shutterAudio, setShutterAudio] = useState(false);
   // round 15+16 — 카메라 시작 직후 환경 사전 체크 (밝기 + feature density)
   const [envCheck, setEnvCheck] = useState<{
     state: 'pending' | 'ready';
@@ -377,6 +385,8 @@ export default function CapturePage() {
 
     // round 14: 셔터 햅틱 (Android Chrome 만 실제 동작, 그 외 silent)
     shutterHaptic(30);
+    // round 22: 셔터 사운드 (사용자가 토글 ON 시) — iOS 등 햅틱 안 되는 환경 보완
+    playShutterSound();
 
     // 박스 영역 좌표 계산 — feature/sharpness/brightness 측정용
     const shortSide = Math.min(vw, vh);
@@ -1045,6 +1055,30 @@ export default function CapturePage() {
                 </label>
               </div>
             )}
+
+            {/* round 22: 셔터 사운드 토글 (iOS 등 Vibration 미지원 보완) */}
+            <div className="mx-auto mt-2 flex max-w-md items-center justify-center">
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-base-500">
+                <input
+                  type="checkbox"
+                  checked={shutterAudio}
+                  onChange={(e) => {
+                    const next = e.target.checked;
+                    setShutterAudio(next);
+                    // user gesture 안에서 AudioContext 생성 (iOS unlock)
+                    if (next) {
+                      enableShutterSound();
+                    } else {
+                      disableShutterSound();
+                    }
+                  }}
+                  className="h-3.5 w-3.5 cursor-pointer accent-accent"
+                />
+                <span>
+                  🔊 <b>셔터 사운드</b> — 진동 미지원 기기 (iPhone) 보완
+                </span>
+              </label>
+            </div>
             {!canSubmit && shots.length > 0 && (
               <div className="mt-2 flex flex-col items-center gap-1">
                 <p className="text-center text-xs text-base-400">

@@ -26,4 +26,5 @@
 [2026-04-25T01:58+09:00] [round 18] [deployed] R7 dropped 사진 미리보기 — captureStore 가 droppedFiles[] 도 IndexedDB 에 별도 저장, train 페이지에 collapsible '<details> 흐림 N장 보기' 로 노출. 사용자가 무엇이 필터됐는지 시각적으로 확인 → 다음 촬영 개선 인사이트. commit 3cda38d
 [2026-04-25T02:06+09:00] [round 19] [deployed] TRELLIS.2 monster 폴백 — VGGT 결과가 monster (R5 휴리스틱) 일 때 banner 에 '🪄 TRELLIS.2 (1장 AI)' 버튼 추가. 클릭 시 첫 사진을 generative AI 로 변환 → 세션 구제 (사용자가 60초 VGGT 낭비 후 빈 손으로 가는 대신 무언가 받음). commit 94f447b
 [2026-04-25T02:14+09:00] [round 20] [deployed] Sharpness 메타 → train 전달 — capture 가 sharpnessScores[] 를 IndexedDB CaptureMeta 에 저장. R19 TRELLIS 폴백이 가장 sharp 한 shot 자동 선택 (이전엔 첫 사진 무조건). best photo 1장 → 더 좋은 AI 생성 결과. commit 4022610
-[2026-04-25T02:22+09:00] [round 21] [deploying] Best shot ★ 마커 — 5장 이상 촬영 시 흐림 제외한 kept 사진 중 sharpness 최대 1장에 ★ best 배지 + emerald 테두리/glow. 사용자가 자신의 베스트 사진 즉시 인지 (R20 TRELLIS 폴백이 사용할 사진 시각화)
+[2026-04-25T02:22+09:00] [round 21] [deployed] Best shot ★ 마커 — 5장 이상 촬영 시 흐림 제외한 kept 사진 중 sharpness 최대 1장에 ★ best 배지 + emerald 테두리/glow. 사용자가 자신의 베스트 사진 즉시 인지 (R20 TRELLIS 폴백이 사용할 사진 시각화). commit eee4806
+[2026-04-25T02:30+09:00] [round 22] [deploying] 셔터 사운드 (iOS 보완) — Web Audio API 로 1500Hz 50ms tick 합성. 토글 옵트인 (default OFF), AudioContext 는 토글 ON 시 user gesture 안에서 생성/unlock. R14 햅틱이 안 되는 iOS Safari 등 환경에서 셔터 인지 가능

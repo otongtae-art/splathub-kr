@@ -34,3 +34,66 @@ export function warningHaptic(): void {
     /* silent */
   }
 }
+
+/* ─── 셔터 사운드 (round 22) ─── */
+// iOS Safari 는 Vibration API 미지원 → 셔터 발사 인지 불가.
+// Web Audio API 로 짧은 'tick' 사운드 → 모든 브라우저 동작 (iOS 포함).
+// 단, AudioContext 는 user gesture 안에서 만들어야 함.
+
+let audioCtx: AudioContext | null = null;
+let audioEnabled = false;
+
+/**
+ * 사용자 토글 ON 시 호출 — user gesture 안에서 AudioContext 생성.
+ * 이후 playShutterSound() 가 작동.
+ */
+export function enableShutterSound(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    type WebkitWindow = Window & { webkitAudioContext?: typeof AudioContext };
+    const Ctor =
+      window.AudioContext ??
+      (window as WebkitWindow).webkitAudioContext;
+    if (!Ctor) return false;
+    if (!audioCtx) audioCtx = new Ctor();
+    // iOS 는 user gesture 안에서 resume 호출해야 unlock
+    if (audioCtx.state === 'suspended') {
+      void audioCtx.resume();
+    }
+    audioEnabled = true;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function disableShutterSound(): void {
+  audioEnabled = false;
+}
+
+/**
+ * 셔터 사운드 재생 — 짧은 tick (1500Hz, ~50ms exp decay).
+ * audioEnabled=false 이거나 AudioContext suspended 면 silent.
+ */
+export function playShutterSound(): void {
+  if (!audioEnabled || !audioCtx) return;
+  try {
+    if (audioCtx.state === 'suspended') {
+      // 다시 unlock 시도 (iOS 가 백그라운드 후 suspend 할 수 있음)
+      void audioCtx.resume();
+      return; // 이번엔 skip, 다음 셔터부터 재생
+    }
+    const t0 = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.frequency.value = 1500; // 'click' 같은 고음
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0.08, t0);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.05);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t0);
+    osc.stop(t0 + 0.05);
+  } catch {
+    /* silent */
+  }
+}
