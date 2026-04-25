@@ -273,7 +273,14 @@ export default function CaptureTrainPage() {
       {/* 메타 */}
       <section className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-base-500 animate-fade-in">
         <span>📸 사진 {shots.length}장</span>
-        {meta && <span>📐 각도 {meta.sectorsCovered}/12구간</span>}
+        {meta?.sectorsCovered !== undefined && (
+          <span>📐 각도 {meta.sectorsCovered}/36구간</span>
+        )}
+        {meta?.droppedBlurry !== undefined && meta.droppedBlurry > 0 && (
+          <span className="text-amber-600 dark:text-amber-400">
+            🌀 흐림 {meta.droppedBlurry}장 자동 제외
+          </span>
+        )}
         <span>
           💾 {(shots.reduce((s, f) => s + f.size, 0) / 1024 / 1024).toFixed(2)} MB
         </span>

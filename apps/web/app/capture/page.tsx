@@ -31,6 +31,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { saveCaptures } from '@/lib/captureStore';
 import { detectFeatures, type FeaturePoint } from '@/lib/features';
+import { classifyBlurry, computeSharpness } from '@/lib/sharpness';
 
 // UX 기준 상향 (2026-04-21 리서치 기반):
 //   - Polycam 최소 20장, Apple Object Capture 20-30장
@@ -53,6 +54,8 @@ type Shot = {
   /** 직전 촬영 이후 누적 이동량 추정치 (작으면 카메라 정지). */
   motionSinceLast: number;
   features: FeaturePoint[];
+  /** Laplacian variance — 클수록 선명. 모든 shot 의 median 대비로 흐림 판정. */
+  sharpness: number;
   timestamp: number;
 };
 
@@ -92,6 +95,16 @@ export default function CapturePage() {
       sectorsCovered.add(sector);
     }
   });
+
+  // 흐림 판정 — 모든 shot 의 sharpness 분포 기반 (median * 0.4 미만 + abs 30 미만)
+  const blurryIds = new Set<string>();
+  if (shots.length >= 3) {
+    const { blurryIndices } = classifyBlurry(shots.map((s) => s.sharpness));
+    blurryIndices.forEach((i) => {
+      const s = shots[i];
+      if (s) blurryIds.add(s.id);
+    });
+  }
   // 자이로가 없는 환경 (데스크톱 웹캠 등) 에서는 각 사진을 "수동 각도"
   // 로 간주해 사진 수만으로 학습 조건 충족 가능하게 함.
   const hasGyro = orientationOK === true;
@@ -247,6 +260,8 @@ export default function CapturePage() {
       );
     }
     const features = fctx ? detectFeatures(featureCanvas, { max: 120 }) : [];
+    // sharpness 는 박스 영역 (객체) 기준으로 측정 — 배경 흐림은 무관
+    const sharpness = fctx ? computeSharpness(featureCanvas) : 0;
 
     const blob = await new Promise<Blob | null>((resolve) =>
       canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.92),
@@ -263,6 +278,7 @@ export default function CapturePage() {
       orientation: currentOrientationRef.current,
       motionSinceLast: motion,
       features,
+      sharpness,
       timestamp: Date.now(),
     };
     setShots((prev) => [...prev, shot]);
@@ -286,9 +302,31 @@ export default function CapturePage() {
   }, []);
 
   const proceedToTraining = useCallback(async () => {
-    const files = shots.map(
+    // 흐린 사진 자동 제외 — 단, 모두 흐리면 (median 자체가 낮음) 그대로 보냄
+    // (어두운 환경 등). 또한 너무 많이 잘리지 않도록 max 30% 만 제거.
+    const sharpnessScores = shots.map((s) => s.sharpness);
+    const { blurryIndices } = classifyBlurry(sharpnessScores);
+    const droppable = new Set(blurryIndices);
+    // 30% 한도 — 모자라면 sharpness 낮은 순으로 droppable 줄이기
+    const maxDrop = Math.floor(shots.length * 0.3);
+    let droppedShots = shots.filter((_, i) => droppable.has(i));
+    if (droppedShots.length > maxDrop) {
+      // 흐린 정도 가장 심한 것 우선 제거
+      droppedShots = [...droppedShots]
+        .sort((a, b) => a.sharpness - b.sharpness)
+        .slice(0, maxDrop);
+    }
+    const droppedSet = new Set(droppedShots.map((s) => s.id));
+    const kept = shots.filter((s) => !droppedSet.has(s.id));
+
+    const files = kept.map(
       (s, i) => new File([s.blob], `shot-${i}.jpg`, { type: 'image/jpeg' }),
     );
+    if (droppedSet.size > 0) {
+      console.info(
+        `[capture] dropped ${droppedSet.size} blurry shots before VGGT (kept ${kept.length})`,
+      );
+    }
 
     stopCamera();
     setDone(true);
@@ -297,7 +335,8 @@ export default function CapturePage() {
       // IndexedDB 에 File[] + 메타 저장 — 새로고침해도 살아남음
       const sessionId = await saveCaptures(files, {
         sectorsCovered: sectorsCovered.size,
-        orientations: shots.map((s) => s.orientation),
+        orientations: kept.map((s) => s.orientation),
+        droppedBlurry: droppedSet.size,
       });
       console.info(`[capture] saved session ${sessionId} (${files.length} files)`);
     } catch (err) {
@@ -491,31 +530,48 @@ export default function CapturePage() {
                 liveAlpha={hasGyro ? liveAlpha : null}
               />
 
-              {/* 썸네일 스트립 */}
+              {/* 썸네일 스트립 — 흐린 사진은 빨간 테두리 + "흐림" 배지 */}
               {shots.length > 0 && (
                 <div className="pointer-events-auto absolute bottom-28 left-0 right-0 px-5">
                   <div className="flex gap-2 overflow-x-auto pb-1">
-                    {shots.slice(-8).map((s) => (
-                      <div
-                        key={s.id}
-                        className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-md border border-white/20"
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={s.previewUrl}
-                          alt=""
-                          className="h-full w-full object-cover"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeShot(s.id)}
-                          className="tactile absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/80 text-white"
+                    {shots.slice(-8).map((s) => {
+                      const isBlurry = blurryIds.has(s.id);
+                      return (
+                        <div
+                          key={s.id}
+                          className={`relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-md border ${
+                            isBlurry ? 'border-danger' : 'border-white/20'
+                          }`}
                         >
-                          <X size={9} weight="bold" />
-                        </button>
-                      </div>
-                    ))}
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={s.previewUrl}
+                            alt=""
+                            className={`h-full w-full object-cover ${
+                              isBlurry ? 'opacity-60' : ''
+                            }`}
+                          />
+                          {isBlurry && (
+                            <span className="absolute bottom-0 left-0 right-0 bg-danger/90 text-center text-[8px] font-medium leading-tight text-white">
+                              흐림
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => removeShot(s.id)}
+                            className="tactile absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/80 text-white"
+                          >
+                            <X size={9} weight="bold" />
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
+                  {blurryIds.size > 0 && (
+                    <p className="mt-1 text-center text-[10px] text-white/70">
+                      흐림 {blurryIds.size}장 — 학습 시 자동 제외 (한도 30%)
+                    </p>
+                  )}
                 </div>
               )}
             </>

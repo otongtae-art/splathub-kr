@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 6 (배포 중)
-**Current deployed commit**: 8220dc2 (+round 5/6 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
+**Round**: 7 (배포 중)
+**Current deployed commit**: 8ab954d (+round 7 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -56,10 +56,19 @@
 - Round 5 (배포): viewer outlier trim + monster 자가진단 — **출력** 잘 보여줌 + 실패 인지
 - Round 6 (배포): 미니맵 가이드 — **입력** photo 분포 개선
 
-## 📋 Round 7 예정
-- [ ] Auto-capture mode (10° + 정지 시 자동 셔터)
-- [ ] Sharpness 필터 (블러 사진 제외)
-- [ ] 미니맵 탭 시 섹터 가이드 텍스트
+## 🎯 Round 7 구현된 것 (Vercel 자동배포)
+8. **Sharpness 필터** (`apps/web/lib/sharpness.ts` 신규)
+   - Laplacian variance (Pech-Pacheco 2000) — 256px 다운스케일, ~5ms
+   - 동적 threshold: max(median*0.4, 30) — outlier 만 자르고 어두운 환경 보호
+   - 썸네일: 흐림이면 빨간 테두리 + opacity 60% + "흐림" 배지
+   - VGGT 호출 전 자동 제외 (한도 30%, 사진 부족 방지)
+   - train 페이지에 "🌀 흐림 N장 자동 제외" 표시
+   - **개별 사진 품질 필터 — VGGT 포즈 추정 안정화**
+
+## 📋 Round 8 예정
+- [ ] Auto-capture mode (10° + 정지 시 자동 셔터, R6 + R7 결합)
+- [ ] 캡처 직후 즉시 흐림 경고 ("이 사진 흐립니다 — 다시?")
+- [ ] HF Space env var 설정 가이드 / 자동화 도구
 - [ ] VGGT-X (sparse-view splat) — R4 배포 후
 
 ## 📈 품질 경로

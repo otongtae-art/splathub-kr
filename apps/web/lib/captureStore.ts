@@ -24,6 +24,8 @@ export type CaptureMeta = {
   count: number;
   sectorsCovered?: number;
   orientations?: Array<{ alpha: number; beta: number; gamma: number } | null>;
+  /** sharpness 필터로 자동 제외된 흐림 사진 수 (round 7+) */
+  droppedBlurry?: number;
   timestamp: number;
 };
 
