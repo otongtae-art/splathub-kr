@@ -63,6 +63,10 @@ export default function CaptureTrainPage() {
     frac: number;
     label: string;
   }>({ frac: 0, label: '' });
+  // round 25 — VGGT 결과 보존 + TRELLIS 결과 별도 보관, 토글로 전환
+  const [vggtBytes, setVggtBytes] = useState<Uint8Array | null>(null);
+  const [trellisBytes, setTrellisBytes] = useState<Uint8Array | null>(null);
+  const [activeView, setActiveView] = useState<'vggt' | 'trellis'>('vggt');
   const thumbnailGridRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -176,12 +180,19 @@ export default function CaptureTrainPage() {
     setTrellisState('loading');
     setTrellisError(null);
     setTrellisProgress({ frac: 0, label: 'TRELLIS.2 호출' });
+    // round 25: 현재 VGGT 결과를 보존 (이후 토글로 전환 가능)
+    if (glbBytes && !vggtBytes) {
+      setVggtBytes(glbBytes);
+    }
     try {
       const result = await callHfSpace(photo, {
         onProgress: (frac, label) =>
           setTrellisProgress({ frac, label: label ?? '' }),
       });
-      setGlbBytes(result.bytes); // VGGT 결과 → TRELLIS 결과로 교체
+      // round 25: TRELLIS 결과 별도 보관 + 활성 뷰 전환
+      setTrellisBytes(result.bytes);
+      setGlbBytes(result.bytes);
+      setActiveView('trellis');
       setViewerStats(null); // 새 모델에 대한 통계는 재측정 필요
       setTrellisState('done');
     } catch (err) {
@@ -235,10 +246,10 @@ export default function CaptureTrainPage() {
 
   // 결과 표시 모드
   if (stage === 'done' && glbBytes) {
-    // monster 의심 휴리스틱:
-    //   flatness < 0.15 → 거의 평면 (depth 가 width/height 의 15% 미만)
-    //   retainedCount < 5000 → 너무 sparse 해서 surface 안 보임
+    // monster 의심 휴리스틱 — VGGT photogrammetry 결과에만 적용
+    // (R5 trim/flatness 는 pointcloud 전용. TRELLIS 는 mesh 라 의미 없음)
     const monsterSuspect =
+      activeView === 'vggt' &&
       viewerStats !== null &&
       (viewerStats.flatness < 0.15 || viewerStats.retainedCount < 5000);
 
@@ -253,8 +264,41 @@ export default function CaptureTrainPage() {
             홈으로
           </Link>
           <div className="flex items-center gap-3 text-xs text-base-500">
-            {/* round 24: source 명시 — VGGT photogrammetry vs TRELLIS AI 생성 구분 */}
-            {trellisState === 'done' ? (
+            {/* round 25: VGGT/TRELLIS 토글 (둘 다 있을 때) */}
+            {vggtBytes && trellisBytes ? (
+              <div className="inline-flex overflow-hidden rounded border border-base-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveView('vggt');
+                    setGlbBytes(vggtBytes);
+                    setViewerStats(null); // 다시 measurement
+                  }}
+                  className={`px-2 py-0.5 text-[11px] transition-colors ${
+                    activeView === 'vggt'
+                      ? 'bg-accent text-base-0'
+                      : 'bg-base-50 text-base-600 hover:bg-base-100'
+                  }`}
+                >
+                  VGGT (실측)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveView('trellis');
+                    setGlbBytes(trellisBytes);
+                    setViewerStats(null);
+                  }}
+                  className={`px-2 py-0.5 text-[11px] transition-colors ${
+                    activeView === 'trellis'
+                      ? 'bg-amber-500/80 text-base-0'
+                      : 'bg-base-50 text-base-600 hover:bg-base-100'
+                  }`}
+                >
+                  TRELLIS (AI)
+                </button>
+              </div>
+            ) : activeView === 'trellis' ? (
               <span className="inline-flex items-center gap-1.5">
                 <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
                   AI 생성
@@ -264,7 +308,7 @@ export default function CaptureTrainPage() {
             ) : (
               <span>VGGT · photogrammetry · {shots.length}장</span>
             )}
-            {viewerStats && trellisState !== 'done' && (
+            {viewerStats && activeView === 'vggt' && (
               <span className="hidden font-mono text-base-400 sm:inline">
                 {viewerStats.retainedCount.toLocaleString()}pts ·{' '}
                 평탄도 {(viewerStats.flatness * 100).toFixed(0)}%

@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 24 (배포 중)
-**Current deployed commit**: 9fdbd9b (+round 24 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
+**Round**: 25 (배포 중)
+**Current deployed commit**: 536c800 (+round 25 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -189,10 +189,17 @@
     - 기본 (VGGT): 'VGGT · photogrammetry · {N}장' + viewer stats
     - **결과 출처 명확 — 사용자가 photogrammetry vs AI 생성 혼동 방지**
 
-## 📋 Round 25 예정
-- [ ] VGGT 결과 통계 확장 패널
-- [ ] 환경 사전 체크 진행 indicator
-- [ ] TRELLIS 폴백 확인 다이얼로그
+## 🎯 Round 25 구현된 것 (Vercel 자동배포)
+26. **VGGT/TRELLIS 결과 토글** (`apps/web/app/capture/train/page.tsx`)
+    - vggtBytes/trellisBytes 별도 보관, activeView 'vggt' | 'trellis'
+    - 헤더에 [VGGT(실측)] [TRELLIS(AI)] 토글 (둘 다 있을 때)
+    - monster banner 는 VGGT 모드에서만
+    - **R19 가 데이터 덮어쓰던 것 → 두 결과 비교 가능**
+
+## 📋 Round 26 예정
+- [ ] 다운로드 버튼이 활성 view 명시
+- [ ] VGGT 통계 확장 패널
+- [ ] 환경 체크 진행 indicator
 - [ ] HF Space env 활성화 도구
 
 ## 📈 품질 경로
