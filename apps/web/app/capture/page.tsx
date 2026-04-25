@@ -218,12 +218,31 @@ export default function CapturePage() {
       setCameraActive(true);
     } catch (err) {
       const msg = (err as Error).message;
+      // round 41: 브라우저 별 actionable 복구 안내
+      const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+      const isIOS = /iPad|iPhone|iPod/.test(ua);
+      const isFirefox = /Firefox/.test(ua);
       if (msg.includes('NotAllowed') || msg.includes('Permission')) {
-        setCameraError('카메라 접근이 거부되었습니다. 브라우저 설정에서 허용해주세요.');
+        const tip = isIOS
+          ? '설정 앱 → Safari → 카메라 → "허용" 으로 변경 후 페이지 새로고침'
+          : isFirefox
+            ? '주소창의 카메라 아이콘 클릭 → "차단 해제" 후 다시 시도'
+            : '주소창의 🔒 자물쇠 → 사이트 권한 → 카메라 "허용" 후 새로고침';
+        setCameraError(`📷 카메라 권한이 거부됨\n\n${tip}\n\n허용 후 [다시 시도] 버튼 누르세요.`);
       } else if (msg.includes('NotFound')) {
-        setCameraError('카메라를 찾을 수 없습니다.');
+        setCameraError(
+          '📷 카메라를 찾을 수 없습니다.\n\n외장 카메라라면 연결 확인. 노트북이라면 다른 앱이 사용 중인지 확인 (Zoom/Teams 등).',
+        );
+      } else if (msg.includes('NotReadable') || msg.includes('TrackStart')) {
+        setCameraError(
+          '📷 카메라가 다른 앱에서 사용 중입니다.\n\nZoom, Teams, 카메라 앱 등을 닫고 다시 시도하세요.',
+        );
+      } else if (msg.includes('OverconstrainedError') || msg.includes('Constraint')) {
+        setCameraError(
+          '📷 카메라가 요청한 해상도 (1920×1080) 를 지원하지 않음.\n\n다른 카메라 사용하거나 새로고침 후 다시 시도.',
+        );
       } else {
-        setCameraError(`카메라 오류: ${msg}`);
+        setCameraError(`📷 카메라 오류\n\n${msg}\n\n새로고침 후 다시 시도하거나 다른 브라우저 사용을 권장.`);
       }
     }
   }, []);
@@ -763,14 +782,28 @@ export default function CapturePage() {
             <div className="flex h-full flex-col items-center justify-center gap-5 px-6 text-center animate-slide-up">
               {cameraError ? (
                 <>
-                  <p className="max-w-sm text-sm text-danger">{cameraError}</p>
-                  <button
-                    type="button"
-                    onClick={startCamera}
-                    className="tactile inline-flex items-center gap-1.5 rounded-md bg-accent px-4 py-2 text-sm font-medium text-base-0"
-                  >
-                    다시 시도
-                  </button>
+                  {/* round 41: whitespace-pre-line 으로 \n 줄바꿈 보존 */}
+                  <p className="max-w-md whitespace-pre-line text-sm leading-relaxed text-danger">
+                    {cameraError}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={startCamera}
+                      className="tactile inline-flex items-center gap-1.5 rounded-md bg-accent px-4 py-2 text-sm font-medium text-base-0"
+                    >
+                      다시 시도
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (typeof window !== 'undefined') window.location.reload();
+                      }}
+                      className="tactile inline-flex items-center gap-1.5 rounded-md border border-base-200 bg-base-50 px-4 py-2 text-sm text-base-700"
+                    >
+                      페이지 새로고침
+                    </button>
+                  </div>
                 </>
               ) : (
                 <>

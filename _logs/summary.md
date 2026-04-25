@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 40 (배포 중)
-**Current deployed commit**: 1830709 (+round 40 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
+**Round**: 41 (배포 중)
+**Current deployed commit**: 1724c8f (+round 41 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -297,11 +297,18 @@
     - iOS Safari 사용자에게 'iPhone — Safari ⎋ 공유 → 홈 화면에 추가' 별도 안내
     - R39 (Android prompt) + R40 (iOS 수동) = PWA 설치 cross-platform 완성
 
-## 📋 Round 41 예정
+## 🎯 Round 41 구현된 것 (Vercel 자동배포)
+42. **카메라 권한 거부 actionable 복구** (`apps/web/app/capture/page.tsx`)
+    - 5종 에러 분류 (NotAllowed/NotFound/NotReadable/Overconstrained/그 외)
+    - 브라우저별 (iOS/Firefox/일반) 복구 안내 — 자물쇠/카메라 아이콘/설정 앱
+    - whitespace-pre-line 줄바꿈 보존, [다시 시도] + [페이지 새로고침] 버튼
+    - **사용자 회복 경로 명확 — 권한 거부 후 포기 ↓**
+
+## 📋 Round 42 예정
+- [ ] iOS 13+ DeviceMotion 권한 요청
 - [ ] Service worker (offline)
 - [ ] VGGT 통계 확장 패널
 - [ ] 토글 트랜지션
-- [ ] 카메라 권한 안내 친근하게
 
 ## 📈 품질 경로
 | 경로 | 상태 | 비용 |
