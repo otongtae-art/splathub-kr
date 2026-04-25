@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 47 (worker only)
-**Current deployed commit**: a4c4f3b (R46 까지 frontend 배포) / `04a763b @ HF Space` (backend R4+R47 대기)
+**Round**: 48 (worker only)
+**Current deployed commit**: a4c4f3b (R46 까지 frontend 배포) / `04a763b @ HF Space` (backend R4+R47+R48 대기)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -346,9 +346,15 @@
     - **R4 backend 기능을 env 변수 설정 없이 per-request 활성화 가능**
     - 다음 deploy.ps1 실행 시 R4 + R47 동시 활성화
 
-## 📋 Round 48 예정
-- [ ] Worker /api/config (활성 모드 expose)
-- [ ] Worker timeout/retry 강화
+## 🎯 Round 48 구현된 것 (worker only, HF Space 수동 deploy 대기)
+49. **/api/config 엔드포인트 추가** (`worker/hf-space/app.py`)
+    - vggt_prediction_mode, vggt_conf_thres, r4_pointmap_active, env_overrides, supports_per_request_override
+    - Frontend 가 R4 활성화 + R47 활성화 자가 검증 가능
+    - **사용자에게 'Pointmap 모드 (실측 향상)' 배지 표시 등 후속 라운드 기반**
+
+## 📋 Round 49 예정
+- [ ] Worker timeout/retry
+- [ ] Frontend callConfig() (R47/R48 배포 후)
 - [ ] Service worker
 
 ## 📈 품질 경로

@@ -516,6 +516,37 @@ def health():
     }
 
 
+@api.get("/api/config")
+def config():
+    """현재 VGGT 설정 expose — round 48.
+
+    Frontend 가 호출해 'R4 (Pointmap Branch + conf_thres=3) 활성화 여부'
+    확인 가능. 사용자에게 'Currently using: Pointmap (실측 향상)' badge
+    표시 등에 활용.
+
+    응답:
+      vggt_prediction_mode: 현재 사용 중 모드
+      vggt_conf_thres: 현재 임계값
+      r4_pointmap_active: 'Pointmap Branch' 면 True (R4 active)
+      env_overrides: env 변수로 설정된 값 (없으면 None)
+    """
+    env_mode = os.getenv("VGGT_PREDICTION_MODE")
+    env_conf = os.getenv("VGGT_CONF_THRES")
+    # 실제 사용될 default (인자 없을 때)
+    effective_mode = env_mode or "Pointmap Branch"
+    effective_conf = float(env_conf) if env_conf else 3.0
+    return {
+        "vggt_prediction_mode": effective_mode,
+        "vggt_conf_thres": effective_conf,
+        "r4_pointmap_active": effective_mode == "Pointmap Branch",
+        "env_overrides": {
+            "VGGT_PREDICTION_MODE": env_mode,
+            "VGGT_CONF_THRES": env_conf,
+        },
+        "supports_per_request_override": True,  # round 47
+    }
+
+
 @api.post("/api/vggt")
 async def vggt_endpoint(
     images: list[UploadFile] = File(...),

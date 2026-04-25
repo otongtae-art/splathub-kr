@@ -52,4 +52,5 @@
 [2026-04-25T05:26+09:00] [round 44] [deployed] 🚀 hands-free 모드 프리셋 — 자동 촬영(R9) + 사운드(R22) + 자동 학습(R34) 3개를 1-클릭으로 모두 ON. 셋 다 켜져 있으면 버튼 숨김. user gesture 안에서 enableShutterSound 호출 (iOS unlock). commit 4ff6a33
 [2026-04-25T05:34+09:00] [round 45] [deployed] 첫 방문자 ✨ 추천 배지 — localStorage 'splathub:capture-seen' 안 있으면 R44 hands-free 버튼에 pulse + glow + '✨ 추천' 배지. 클릭 또는 첫 shot 시 영구 dismiss. commit f51c67b
 [2026-04-25T05:42+09:00] [round 46] [pushed] VGGT 통계 확장 패널 — '📊 자세히' details. 원본/유지 점, bbox, 평탄도, 각도, 흐림 등 전체 metrics + 해석. commit a4c4f3b. (Vercel auto-deploy 가 catch up — 새 chunk hash 34371a8d 확인됨)
-[2026-04-25T06:18+09:00] [round 47] [worker-only] /api/vggt 엔드포인트에 prediction_mode/conf_thres Form param override 추가 — 우선순위 인자>env>기본. R4 의 backend 기능을 per-request 호출 로 활성화 가능 (env 변수 설정 불필요). HF Space 수동 redeploy 시 R4 와 함께 활성화
+[2026-04-25T06:18+09:00] [round 47] [worker-only] /api/vggt 엔드포인트에 prediction_mode/conf_thres Form param override 추가 — 우선순위 인자>env>기본. R4 의 backend 기능을 per-request 호출 로 활성화 가능 (env 변수 설정 불필요). HF Space 수동 redeploy 시 R4 와 함께 활성화. commit b74807c
+[2026-04-25T06:53+09:00] [round 48] [worker-only] /api/config 엔드포인트 추가 — VGGT 활성 모드, conf_thres, env override, r4_pointmap_active flag, supports_per_request_override 모두 expose. Frontend 가 'R4 활성화 여부' 검증 + 사용자에게 표시 가능
