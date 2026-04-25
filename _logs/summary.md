@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 30 (도구 추가, R4 활성화 가이드)
-**Current deployed commit**: 80bee48 (+round 30 도구) / `04a763b @ HF Space` (backend, R4 활성화 도구 사용 시 풀림)
+**Round**: 31 (배포 중)
+**Current deployed commit**: 77e1f4c (+round 31 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -229,10 +229,16 @@
     - **자율 루프가 못 했던 R4 활성화 경로 사용자에게 명확 제공**
     - R4 풀리면 R1-R29 노력 효과 2배+
 
-## 📋 Round 31 예정
+## 🎯 Round 31 구현된 것 (Vercel 자동배포)
+32. **홈페이지 사이드바 샘플 결과 링크** (`apps/web/app/page.tsx`)
+    - '내 모델' 0개일 때 '예시 결과 보기 →' 버튼 + 보조 설명
+    - `/m/sample-butterfly` 직링크
+    - **새 방문자가 capture 시작 전 expectation 형성 → 클릭 의도 ↑**
+
+## 📋 Round 32 예정
 - [ ] VGGT 통계 확장 패널
 - [ ] 토글 트랜지션
-- [ ] 탑 페이지에 sample 결과 미리보기 카드
+- [ ] 공유 링크 OG image 동적
 
 ## 📈 품질 경로
 | 경로 | 상태 | 비용 |

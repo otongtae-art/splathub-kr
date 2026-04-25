@@ -421,7 +421,21 @@ export default function DashboardPage() {
           </div>
 
           {myModels.length === 0 ? (
-            <p className="mt-4 text-xs text-base-500">아직 생성한 모델이 없습니다.</p>
+            <div className="mt-4 flex flex-col gap-2.5">
+              <p className="text-xs text-base-500">아직 생성한 모델이 없습니다.</p>
+              {/* round 31: 샘플 결과 링크 — 새 방문자가 무엇이 나올지 미리 봄 */}
+              <Link
+                href="/m/sample-butterfly"
+                className="tactile group inline-flex items-center gap-2 self-start rounded-md border border-accent/30 bg-accent/[0.04] px-2.5 py-1.5 text-xs text-accent transition-colors hover:bg-accent/[0.1]"
+              >
+                <Cube size={12} weight="regular" />
+                <span>예시 결과 보기</span>
+                <span className="text-accent/60 group-hover:text-accent">→</span>
+              </Link>
+              <p className="text-[11px] text-base-400">
+                실제 사용자 결과가 어떻게 보이는지 미리 확인하세요.
+              </p>
+            </div>
           ) : (
             <ul className="mt-4 flex flex-col divide-y divide-base-100 border-y border-base-100">
               {myModels.map((m) => (
