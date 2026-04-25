@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 36 (배포 중)
-**Current deployed commit**: 37c1028 (+round 36 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
+**Round**: 37 (배포 중)
+**Current deployed commit**: 3d52f31 (+round 37 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -269,11 +269,18 @@
     - 일관된 fallback UI ("3D 뷰어 오류 / Chrome 134+ 권장")
     - **4개 viewer 모두 보호 — 어디서 WebGL crash 해도 white screen 안 남**
 
-## 📋 Round 37 예정
-- [ ] 자동 학습 햅틱 진동
+## 🎯 Round 37 구현된 것 (Vercel 자동배포)
+38. **App-level error.tsx + R34 countdown 햅틱** (`apps/web/app/error.tsx` 신규, `app/capture/page.tsx`)
+    - Next.js App Router 라우트 boundary 추가 (R35-R36 컴포넌트 boundary 와 직교적)
+    - GlobalError component: '⚠ 문제 발생 / [다시 시도] [홈으로]' + digest ID
+    - R34 countdown 시작 시 warningHaptic() — 화면 안 보고 있어도 인지
+    - **모든 종류의 에러에 actionable fallback (white screen 0)**
+
+## 📋 Round 38 예정
 - [ ] VGGT 통계 확장 패널
 - [ ] 토글 트랜지션
-- [ ] 페이지 단위 error.tsx
+- [ ] 자동 학습 매초 tick 진동
+- [ ] PWA / service worker
 
 ## 📈 품질 경로
 | 경로 | 상태 | 비용 |

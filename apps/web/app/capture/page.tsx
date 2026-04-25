@@ -706,6 +706,8 @@ export default function CapturePage() {
     if (!autoTrainOnTarget || done || autoTrainCountdown !== null) return;
     if (shots.length < TARGET_SHOTS) return;
     setAutoTrainCountdown(5);
+    // round 37: 화면 안 보고 있을 사용자에게 더블탭 진동으로 알림
+    warningHaptic();
   }, [autoTrainOnTarget, done, autoTrainCountdown, shots.length]);
 
   // round 34 — countdown 1초마다 decrement
