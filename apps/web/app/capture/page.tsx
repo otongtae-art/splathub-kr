@@ -108,10 +108,12 @@ export default function CapturePage() {
   const [autoWaiting, setAutoWaiting] = useState(false);
   // round 14 — manual shutter 도 burst 활성화 (opt-in, 250ms 지연 vs 품질)
   const [manualBurst, setManualBurst] = useState(false);
-  // round 15 — 카메라 시작 직후 환경 사전 체크 (밝기 sample 1초)
+  // round 15+16 — 카메라 시작 직후 환경 사전 체크 (밝기 + feature density)
   const [envCheck, setEnvCheck] = useState<{
-    state: 'pending' | 'ok' | 'dim';
+    state: 'pending' | 'ready';
+    issues: ('dim' | 'low_texture')[];
     avgBrightness: number;
+    avgFeatures: number;
   } | null>(null);
   const [envBannerDismissed, setEnvBannerDismissed] = useState(false);
   // 자동 모드 상태: 직전 섹터 + 마지막 자동 shot 시각 (debounce)
@@ -222,40 +224,59 @@ export default function CapturePage() {
     return () => window.clearInterval(id);
   }, [cameraActive]);
 
-  // round 15 — 카메라 시작 직후 환경 사전 체크 (1초간 brightness 5회 sample)
-  // 너무 어두우면 사용자에게 사전 경고 → 20+ 사진 투자 전에 환경 개선 유도.
-  // shots>0 이면 이미 촬영 진행 중이므로 재실행 안 함.
+  // round 15+16 — 카메라 시작 직후 환경 사전 체크 (밝기 + feature density)
+  // 어두움 (R15) + textureless wall (R16) 동시 검출.
+  // textureless = photogrammetry 가 본질적으로 작동 안 함 (feature 매칭 불가).
   useEffect(() => {
     if (!cameraActive) return;
-    if (shots.length > 0) return; // 이미 촬영 시작됨, skip
-    if (envCheck && envCheck.state !== 'pending') return; // 이미 측정 완료
+    if (shots.length > 0) return; // 이미 촬영 시작됨
+    if (envCheck && envCheck.state !== 'pending') return; // 이미 완료
 
-    setEnvCheck({ state: 'pending', avgBrightness: 0 });
+    setEnvCheck({
+      state: 'pending',
+      issues: [],
+      avgBrightness: 0,
+      avgFeatures: 0,
+    });
     let cancelled = false;
-    const samples: number[] = [];
+    const brightSamples: number[] = [];
+    const featCounts: number[] = [];
 
     const sampleOnce = () => {
       const video = videoRef.current;
       if (!video || !video.videoWidth) return;
       try {
-        const b = computeBrightness(video);
-        samples.push(b);
+        brightSamples.push(computeBrightness(video));
+        // 작은 해상도 (200px) + max 80 features 로 빠르게 측정
+        const feats = detectFeatures(video, { max: 80, width: 200 });
+        featCounts.push(feats.length);
       } catch {
         /* ignore */
       }
     };
 
-    // 200ms 간격으로 5회 샘플 → 1초간 평균
+    // 200ms 간격 5회 샘플 → 1초간 평균
     const interval = window.setInterval(sampleOnce, 200);
     const finish = window.setTimeout(() => {
       window.clearInterval(interval);
-      if (cancelled || samples.length === 0) return;
-      const avg = samples.reduce((a, b) => a + b, 0) / samples.length;
-      // 60 미만 = 어두움 경고. R11 의 per-shot 임계값 (35) 보다 살짝 너그럽게
-      // — 환경 자체는 50-100 어두운 실내 정도면 미리 경고.
+      if (cancelled || brightSamples.length === 0) return;
+      const avgB =
+        brightSamples.reduce((a, b) => a + b, 0) / brightSamples.length;
+      const avgF =
+        featCounts.length > 0
+          ? featCounts.reduce((a, b) => a + b, 0) / featCounts.length
+          : 0;
+      const issues: ('dim' | 'low_texture')[] = [];
+      // 60 미만 = 어두움 (R15 임계값)
+      if (avgB < 60) issues.push('dim');
+      // 평균 feature 수 < 20 → textureless wall 의심
+      // 일반 객체 장면은 200px 다운스케일에서 ~50-80 features 검출
+      if (avgF < 20) issues.push('low_texture');
       setEnvCheck({
-        state: avg < 60 ? 'dim' : 'ok',
-        avgBrightness: avg,
+        state: 'ready',
+        issues,
+        avgBrightness: avgB,
+        avgFeatures: avgF,
       });
     }, 1100);
 
@@ -264,7 +285,6 @@ export default function CapturePage() {
       window.clearInterval(interval);
       window.clearTimeout(finish);
     };
-    // envCheck 는 dependency 에서 제외 — 무한 루프 방지 (state setter 호출이 effect 재실행 트리거)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cameraActive, shots.length]);
 
@@ -728,20 +748,31 @@ export default function CapturePage() {
                 </div>
               )}
 
-              {/* round 15: 환경 사전 체크 — 어두움 시 사전 경고 (촬영 시작 전) */}
-              {envCheck?.state === 'dim' &&
+              {/* round 15+16: 환경 사전 체크 banner — dim 또는 low_texture 시 */}
+              {envCheck?.state === 'ready' &&
+                envCheck.issues.length > 0 &&
                 !envBannerDismissed &&
                 shots.length === 0 && (
                   <div className="pointer-events-auto absolute left-5 right-5 top-20 mx-auto max-w-md animate-fade-in">
                     <div className="flex items-start gap-2.5 rounded-md border border-amber-500/50 bg-black/85 px-3.5 py-2.5 text-xs text-white shadow-lg backdrop-blur-sm">
-                      <span className="mt-0.5 text-amber-400">💡</span>
+                      <span className="mt-0.5 text-amber-400">
+                        {envCheck.issues.includes('low_texture') ? '🎨' : '💡'}
+                      </span>
                       <div className="flex flex-1 flex-col gap-1">
                         <p className="font-medium text-amber-200">
-                          환경이 어둡습니다 (밝기 {envCheck.avgBrightness.toFixed(0)})
+                          {envCheck.issues.length === 2
+                            ? `환경 부적합 — 밝기 ${envCheck.avgBrightness.toFixed(0)}, 특징점 ${envCheck.avgFeatures.toFixed(0)}`
+                            : envCheck.issues[0] === 'low_texture'
+                              ? `질감 부족 — 평균 특징점 ${envCheck.avgFeatures.toFixed(0)}개`
+                              : `환경이 어둡습니다 (밝기 ${envCheck.avgBrightness.toFixed(0)})`}
                         </p>
                         <p className="text-[11px] text-white/70">
-                          어두운 곳에서는 카메라 ISO 노이즈 ↑ → photogrammetry
-                          품질 ↓. 더 밝은 곳에서 촬영을 권장합니다.
+                          {envCheck.issues.includes('low_texture') &&
+                          envCheck.issues.includes('dim')
+                            ? '단색 벽 + 어두운 환경 — photogrammetry 가 카메라 위치를 추정하지 못합니다.'
+                            : envCheck.issues[0] === 'low_texture'
+                              ? '단색 벽이나 무늬 없는 배경은 photogrammetry 가 카메라 위치를 추정하지 못합니다. 패턴/질감 있는 배경을 권장합니다.'
+                              : '어두운 곳에서는 카메라 ISO 노이즈 ↑ → photogrammetry 품질 ↓. 더 밝은 곳에서 촬영을 권장합니다.'}
                         </p>
                       </div>
                       <button

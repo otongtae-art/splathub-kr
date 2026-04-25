@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 15 (배포 중)
-**Current deployed commit**: b989326 (+round 15 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
+**Round**: 16 (배포 중)
+**Current deployed commit**: db0926a (+round 16 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -131,10 +131,17 @@
     - shots>0 또는 [무시] 클릭 시 자동 숨김
     - **사용자가 20+ 사진 투자 전에 환경 개선 결정 → R11 toast 보다 먼저 발동**
 
-## 📋 Round 16 예정
+## 🎯 Round 16 구현된 것 (Vercel 자동배포)
+17. **환경 사전 체크 + feature density** (`apps/web/app/capture/page.tsx`)
+    - R15 brightness 위에 detectFeatures (200px, max 80) 5회 sample 추가
+    - avg<20 features → 'low_texture' issue
+    - 메시지 분기: dim/low_texture/둘 다
+    - **Photogrammetry 본질적 실패 모드 (textureless wall) 사전 감지**
+
+## 📋 Round 17 예정
 - [ ] 결과 페이지 R7 dropped 사진 미리보기
 - [ ] 셔터 흰 플래시 오버레이
-- [ ] 환경 체크에 feature density 추가 (textureless wall 감지)
+- [ ] 환경 ok 시 작은 ✓ 표시
 - [ ] HF Space env 활성화 도구
 
 ## 📈 품질 경로
