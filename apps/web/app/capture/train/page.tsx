@@ -438,9 +438,10 @@ export default function CaptureTrainPage() {
               onStats={setViewerStats}
             />
           </ErrorBoundary>
-          {/* round 27+39: 다운로드 가이드 + PWA 설치 안내 (조건부 결합) */}
+          {/* round 27+39+40: 다운로드 가이드 + PWA 설치 (Android prompt + iOS 수동 안내) */}
           {(showDownloadGuide ||
-            (pwa.canInstall && !pwa.installed && !pwa.dismissed)) && (
+            (pwa.canInstall && !pwa.installed && !pwa.dismissed) ||
+            (pwa.isIOS && !pwa.installed && !pwa.dismissed)) && (
             <div className="pointer-events-auto absolute bottom-4 left-1/2 max-w-md -translate-x-1/2 px-4 animate-fade-in">
               <div className="flex flex-col gap-2 rounded-md border border-accent/40 bg-black/90 px-3.5 py-2.5 text-xs text-white shadow-xl backdrop-blur-md">
                 {showDownloadGuide && (
@@ -471,7 +472,7 @@ export default function CaptureTrainPage() {
                     </button>
                   </div>
                 )}
-                {/* round 39: PWA 설치 안내 — beforeinstallprompt 발생한 사용자만 */}
+                {/* round 39: PWA 설치 안내 — beforeinstallprompt 발생한 사용자 (Android Chrome 등) */}
                 {pwa.canInstall && !pwa.installed && !pwa.dismissed && (
                   <div
                     className={`flex items-start gap-2.5 ${showDownloadGuide ? 'border-t border-white/10 pt-2' : ''}`}
@@ -496,6 +497,29 @@ export default function CaptureTrainPage() {
                       type="button"
                       onClick={pwa.dismiss}
                       aria-label="설치 안내 닫기"
+                      className="tactile rounded text-[10px] text-white/60 hover:text-white"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+                {/* round 40: iOS 수동 안내 — Safari 는 beforeinstallprompt 미지원 */}
+                {pwa.isIOS && !pwa.canInstall && !pwa.installed && !pwa.dismissed && (
+                  <div
+                    className={`flex items-start gap-2.5 ${showDownloadGuide ? 'border-t border-white/10 pt-2' : ''}`}
+                  >
+                    <span className="mt-0.5 text-accent">📱</span>
+                    <div className="flex flex-1 flex-col gap-1">
+                      <p className="font-medium">iPhone — 홈 화면에 추가</p>
+                      <p className="text-[11px] text-white/75 leading-relaxed">
+                        Safari 하단 <span className="font-mono">⎋ 공유</span> 버튼 →
+                        <b> &lsquo;홈 화면에 추가&rsquo;</b>. 풀스크린 + 1탭 접근.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={pwa.dismiss}
+                      aria-label="iOS 안내 닫기"
                       className="tactile rounded text-[10px] text-white/60 hover:text-white"
                     >
                       ✕

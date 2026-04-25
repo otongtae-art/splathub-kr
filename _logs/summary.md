@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 39 (배포 중)
-**Current deployed commit**: 9ac6d37 (+round 39 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
+**Round**: 40 (배포 중)
+**Current deployed commit**: 1830709 (+round 40 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -291,11 +291,17 @@
     - R27 다운로드 가이드 toast 와 같은 위치 stack (조건부 결합)
     - **PWA 채택률 ↑ — 사용자 성공 모멘트에 install 명시적 노출**
 
-## 📋 Round 40 예정
-- [ ] iOS 사용자 'Safari 공유 → 홈 화면에 추가' 안내
+## 🎯 Round 40 구현된 것 (Vercel 자동배포)
+41. **iOS PWA 안내** (`apps/web/app/capture/train/page.tsx`)
+    - R39 hook 의 isIOS 활용
+    - iOS Safari 사용자에게 'iPhone — Safari ⎋ 공유 → 홈 화면에 추가' 별도 안내
+    - R39 (Android prompt) + R40 (iOS 수동) = PWA 설치 cross-platform 완성
+
+## 📋 Round 41 예정
 - [ ] Service worker (offline)
 - [ ] VGGT 통계 확장 패널
 - [ ] 토글 트랜지션
+- [ ] 카메라 권한 안내 친근하게
 
 ## 📈 품질 경로
 | 경로 | 상태 | 비용 |
