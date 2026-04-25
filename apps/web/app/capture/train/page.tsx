@@ -208,7 +208,10 @@ export default function CaptureTrainPage() {
     const blob = new Blob([glbBytes as BlobPart], { type: 'model/gltf-binary' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `splathub-3d-${Date.now()}.glb`;
+    // round 26: 활성 view 기반 파일명 — 사용자가 무엇을 받는지 명확
+    const prefix =
+      activeView === 'trellis' ? 'splathub-trellis-ai' : 'splathub-vggt';
+    a.download = `${prefix}-${Date.now()}.glb`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };

@@ -810,6 +810,16 @@ export default function CapturePage() {
                 </div>
               )}
 
+              {/* round 26: 환경 체크 진행 중 indicator — 1초 sample 동안 표시 */}
+              {envCheck?.state === 'pending' && shots.length === 0 && (
+                <div className="pointer-events-none absolute left-1/2 top-20 -translate-x-1/2 animate-fade-in">
+                  <div className="flex items-center gap-2 rounded-md border border-base-300/60 bg-black/75 px-3 py-1.5 text-xs text-white/85 shadow-lg backdrop-blur-sm">
+                    <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
+                    <span>환경 체크 중 · 1초만 가만히</span>
+                  </div>
+                </div>
+              )}
+
               {/* round 17: 환경 OK ✓ 배지 (2.5초) — 사용자에게 silent pass 명시 */}
               {envOkVisible && shots.length === 0 && envCheck && (
                 <div className="pointer-events-none absolute left-1/2 top-20 -translate-x-1/2 animate-fade-in">

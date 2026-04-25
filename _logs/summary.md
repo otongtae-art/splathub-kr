@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 25 (배포 중)
-**Current deployed commit**: 536c800 (+round 25 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
+**Round**: 26 (배포 중)
+**Current deployed commit**: 59dccd4 (+round 26 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -196,10 +196,16 @@
     - monster banner 는 VGGT 모드에서만
     - **R19 가 데이터 덮어쓰던 것 → 두 결과 비교 가능**
 
-## 📋 Round 26 예정
-- [ ] 다운로드 버튼이 활성 view 명시
-- [ ] VGGT 통계 확장 패널
-- [ ] 환경 체크 진행 indicator
+## 🎯 Round 26 구현된 것 (Vercel 자동배포)
+27. **다운로드 파일명 view 별 + 환경 체크 진행 indicator** (`apps/web/app/capture/train/page.tsx`, `apps/web/app/capture/page.tsx`)
+    - 다운로드 파일명: `splathub-vggt-{ts}.glb` / `splathub-trellis-ai-{ts}.glb`
+    - 카메라 시작 후 1초 환경 체크 동안 "환경 체크 중 · 1초만 가만히" 펄싱 점
+    - **R25 토글 + R15-R17 환경 체크 두 feature 모두 사이클 완성**
+
+## 📋 Round 27 예정
+- [ ] VGGT 통계 확장 패널 (debug/power user)
+- [ ] 결과 페이지 사용 가이드 (GLB 어디서 열기)
+- [ ] 토글 시 화면 전환 트랜지션
 - [ ] HF Space env 활성화 도구
 
 ## 📈 품질 경로
