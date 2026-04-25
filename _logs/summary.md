@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 28 (배포 중)
-**Current deployed commit**: 728258b (+round 28 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
+**Round**: 29 (배포 중)
+**Current deployed commit**: cbea007 (+round 29 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -216,10 +216,16 @@
     - dismissible (✕)
     - **브라우저 닫고 돌아온 사용자 노력 낭비 방지**
 
-## 📋 Round 29 예정
+## 🎯 Round 29 구현된 것 (Vercel 자동배포)
+30. **이전 세션 banner thumbnail** (`apps/web/app/capture/page.tsx`)
+    - R28 banner 에 첫 사진 48×48 thumbnail 추가
+    - URL.createObjectURL + cleanup
+    - **사용자가 어떤 세션인지 시각적 즉시 인지**
+
+## 📋 Round 30 예정
 - [ ] VGGT 통계 확장 패널
 - [ ] 토글 트랜지션
-- [ ] 이전 세션 banner 미리보기 thumbnail
+- [ ] 캡처 메모리 절약 안내
 - [ ] HF Space env 활성화 도구
 
 ## 📈 품질 경로

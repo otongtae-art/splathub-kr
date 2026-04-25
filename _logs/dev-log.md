@@ -33,4 +33,5 @@
 [2026-04-25T02:54+09:00] [round 25] [deployed] VGGT/TRELLIS 결과 토글 — R19 폴백이 VGGT 결과를 덮어쓰던 것을 vggtBytes/trellisBytes 별도 보관으로 변경. 헤더에 [VGGT(실측)] [TRELLIS(AI)] 토글 추가, 사용자가 두 결과 비교 가능. monster banner 는 VGGT 모드에서만 표시. commit 59dccd4
 [2026-04-25T03:02+09:00] [round 26] [deployed] 다운로드 파일명 view 별 + 환경 체크 진행 indicator — 다운로드 파일명이 'splathub-vggt-{ts}.glb' / 'splathub-trellis-ai-{ts}.glb' 로 활성 view 반영. 카메라 시작 후 1초 환경 체크 동안 '환경 체크 중 · 1초만 가만히' 펄싱 점 표시 → silent wait 제거. commit cf52747
 [2026-04-25T03:10+09:00] [round 27] [deployed] 다운로드 후 사용 가이드 toast — 첫 다운로드 시 bottom-center 에 '📂 다운로드 완료 · 사용 방법: gltf-viewer.donmccurdy.com 에 .glb 끌어놓기. Blender/Unity/Three.js 도 직접 import' 표시. sessionStorage 로 1세션 1회만. commit 728258b
-[2026-04-25T03:18+09:00] [round 28] [deploying] 이전 세션 이어가기 — /capture 진입 시 IndexedDB 에서 최근 24시간 내 세션 자동 감지, 카메라 시작 전 화면에 '📂 이전 세션 발견 · N장 / X분 전 촬영. 이어가기' 배너 표시. 브라우저 닫고 돌아온 사용자가 처음부터 다시 안 찍어도 됨
+[2026-04-25T03:18+09:00] [round 28] [deployed] 이전 세션 이어가기 — /capture 진입 시 IndexedDB 에서 최근 24시간 내 세션 자동 감지, 카메라 시작 전 화면에 '📂 이전 세션 발견 · N장 / X분 전 촬영. 이어가기' 배너 표시. 브라우저 닫고 돌아온 사용자가 처음부터 다시 안 찍어도 됨. commit cbea007
+[2026-04-25T03:26+09:00] [round 29] [deploying] 이전 세션 banner 미리보기 thumbnail — R28 의 텍스트 배너에 첫 사진 48×48 thumbnail 추가. URL.createObjectURL + cleanup. 사용자가 어떤 세션을 이어가는지 시각적 확인 → "맞아 이거였지" 즉시 인지

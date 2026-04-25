@@ -123,11 +123,13 @@ export default function CapturePage() {
   const [manualBurst, setManualBurst] = useState(false);
   // round 22 — 셔터 사운드 (iOS 등 Vibration 미지원 환경 보완)
   const [shutterAudio, setShutterAudio] = useState(false);
-  // round 28 — IndexedDB 에 남은 이전 세션 (브라우저 닫고 돌아온 경우 이어가기)
+  // round 28+29 — IndexedDB 에 남은 이전 세션 (이어가기 + 미리보기 thumbnail)
   const [pastSession, setPastSession] = useState<{
     id: string;
     count: number;
     minutesAgo: number;
+    /** 첫 사진의 object URL — 시각 확인용 (round 29) */
+    thumbUrl: string | null;
   } | null>(null);
   const [pastSessionDismissed, setPastSessionDismissed] = useState(false);
   // round 15+16 — 카메라 시작 직후 환경 사전 체크 (밝기 + feature density)
@@ -262,9 +264,10 @@ export default function CapturePage() {
     return () => window.clearInterval(id);
   }, [cameraActive]);
 
-  // round 28 — 이전 세션 감지 (mount 시 1회만, 카메라 시작 전)
+  // round 28+29 — 이전 세션 감지 (mount 1회) + 미리보기 thumbnail URL
   useEffect(() => {
     let cancelled = false;
+    let createdUrl: string | null = null;
     (async () => {
       try {
         const sid = getLatestSessionId();
@@ -275,10 +278,24 @@ export default function CapturePage() {
         const ageMin = (Date.now() - (data.meta.timestamp ?? Date.now())) / 60000;
         // 24시간 이내만 유의미
         if (ageMin > 24 * 60) return;
+        // round 29: 첫 사진을 미리보기로 사용
+        const first = data.files[0];
+        if (first) {
+          try {
+            createdUrl = URL.createObjectURL(first);
+          } catch {
+            /* ignore */
+          }
+        }
+        if (cancelled) {
+          if (createdUrl) URL.revokeObjectURL(createdUrl);
+          return;
+        }
         setPastSession({
           id: sid,
           count: data.files.length,
           minutesAgo: Math.max(1, Math.round(ageMin)),
+          thumbUrl: createdUrl,
         });
       } catch {
         /* IDB 차단 환경 무시 */
@@ -286,6 +303,13 @@ export default function CapturePage() {
     })();
     return () => {
       cancelled = true;
+      if (createdUrl) {
+        try {
+          URL.revokeObjectURL(createdUrl);
+        } catch {
+          /* ignore */
+        }
+      }
     };
   }, []);
 
@@ -771,10 +795,21 @@ export default function CapturePage() {
                     <p>🟢 실측 기반 (AI 환각 없음)</p>
                   </div>
 
-                  {/* round 28: 이전 세션 이어가기 (24h 내, dismissible) */}
+                  {/* round 28+29: 이전 세션 이어가기 (썸네일 + 카운트, dismissible) */}
                   {pastSession && !pastSessionDismissed && (
-                    <div className="mt-3 flex max-w-md items-start gap-2 rounded-md border border-accent/30 bg-accent/[0.05] p-3 text-left text-xs animate-fade-in">
-                      <span className="text-accent">📂</span>
+                    <div className="mt-3 flex max-w-md items-center gap-3 rounded-md border border-accent/30 bg-accent/[0.05] p-3 text-left text-xs animate-fade-in">
+                      {pastSession.thumbUrl ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img
+                          src={pastSession.thumbUrl}
+                          alt="이전 세션 첫 사진"
+                          className="h-12 w-12 flex-shrink-0 rounded border border-accent/40 object-cover"
+                        />
+                      ) : (
+                        <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded border border-accent/40 bg-accent/10 text-lg text-accent">
+                          📂
+                        </span>
+                      )}
                       <div className="flex flex-1 flex-col gap-0.5">
                         <p className="font-medium text-base-900">
                           이전 세션 발견 · {pastSession.count}장
