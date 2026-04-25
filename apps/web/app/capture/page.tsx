@@ -31,6 +31,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { saveCaptures } from '@/lib/captureStore';
 import { detectFeatures, type FeaturePoint } from '@/lib/features';
+import { shutterHaptic, warningHaptic } from '@/lib/haptics';
 import {
   classifyBlurry,
   computeBrightness,
@@ -105,6 +106,8 @@ export default function CapturePage() {
   const [autoCapture, setAutoCapture] = useState(false);
   // round 10 — auto-capture 가 motion gate 로 대기 중인지 표시
   const [autoWaiting, setAutoWaiting] = useState(false);
+  // round 14 — manual shutter 도 burst 활성화 (opt-in, 250ms 지연 vs 품질)
+  const [manualBurst, setManualBurst] = useState(false);
   // 자동 모드 상태: 직전 섹터 + 마지막 자동 shot 시각 (debounce)
   const prevSectorRef = useRef<number | null>(null);
   const lastAutoShotAtRef = useRef<number>(0);
@@ -275,6 +278,9 @@ export default function CapturePage() {
     const vh = video.videoHeight;
     if (!vw || !vh) return;
 
+    // round 14: 셔터 햅틱 (Android Chrome 만 실제 동작, 그 외 silent)
+    shutterHaptic(30);
+
     // 박스 영역 좌표 계산 — feature/sharpness/brightness 측정용
     const shortSide = Math.min(vw, vh);
     const boxSize = shortSide * boxRatio;
@@ -383,6 +389,8 @@ export default function CapturePage() {
     const isDark = brightness < 35;
     if (isBlurry || isDark) {
       setBlurToast({ id: shot.id, isBlurry, isDark });
+      // round 14: 흐림/어두움 시 더블 탭 진동 — 셔터(30ms)와 구분
+      warningHaptic();
       setTimeout(() => {
         setBlurToast((cur) => (cur?.id === shot.id ? null : cur));
       }, 3500);
@@ -799,7 +807,7 @@ export default function CapturePage() {
               </button>
               <button
                 type="button"
-                onClick={() => captureShot()}
+                onClick={() => captureShot({ burst: manualBurst })}
                 aria-label="촬영"
                 className={`flex h-16 w-16 items-center justify-center rounded-full border-2 bg-white/10 transition-transform active:scale-90 ${
                   autoCapture
@@ -848,6 +856,23 @@ export default function CapturePage() {
                     📷 카메라 안정 대기 중 — 잠시 멈춰주세요
                   </p>
                 )}
+              </div>
+            )}
+
+            {/* round 14: manual 셔터 burst 토글 (auto 와 별개, 항상 표시) */}
+            {!autoCapture && (
+              <div className="mx-auto mt-2 flex max-w-md items-center justify-center">
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-base-600">
+                  <input
+                    type="checkbox"
+                    checked={manualBurst}
+                    onChange={(e) => setManualBurst(e.target.checked)}
+                    className="h-3.5 w-3.5 cursor-pointer accent-accent"
+                  />
+                  <span>
+                    ✨ <b>3장 burst</b> — 셔터 1번에 3장 → sharp 1장 (250ms 더 걸림)
+                  </span>
+                </label>
               </div>
             )}
             {!canSubmit && shots.length > 0 && (

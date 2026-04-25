@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 13 (배포 중)
-**Current deployed commit**: fe8462a (+round 13 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
+**Round**: 14 (배포 중)
+**Current deployed commit**: 2b67c25 (+round 14 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -117,10 +117,17 @@
     - 채울 때마다 다음 가까운 빈 곳으로 자동 이동
     - **R6 의 모든-동일-dim → 추천-1개-강조 로 전환**
 
-## 📋 Round 14 예정
-- [ ] 햅틱 진동 (Vibration API)
+## 🎯 Round 14 구현된 것 (Vercel 자동배포)
+15. **햅틱 + manual burst 토글** (`apps/web/lib/haptics.ts` 신규, `app/capture/page.tsx`)
+    - shutterHaptic(30ms) — 모든 captureShot
+    - warningHaptic(더블탭) — 흐림/어두움 toast 시
+    - manual 셔터 '✨ 3장 burst' 토글 (Auto OFF 일 때만 표시)
+    - **모든 사용자가 burst 품질 선택 가능 + 화면 안 보고도 셔터/경고 인지**
+
+## 📋 Round 15 예정
 - [ ] 결과 페이지 R7 dropped 사진 미리보기
-- [ ] Manual 셔터 burst 토글
+- [ ] 캡처 시작 전 환경 사전 체크 (밝기)
+- [ ] 셔터 발사 시 흰 플래시 오버레이
 - [ ] HF Space env 활성화 도구
 
 ## 📈 품질 경로
