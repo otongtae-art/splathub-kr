@@ -80,6 +80,9 @@ export default function CapturePage() {
   const [done, setDone] = useState(false);
   // 타겟 박스 크기 비율. 0.3 = 작은 물체, 0.85 = 큰 물체. 기본 40%.
   const [boxRatio, setBoxRatio] = useState(0.4);
+  // 미니맵용 live alpha — orientation ref 를 5Hz 폴링해서 state 동기화
+  // (60Hz event 마다 setState 하면 전체 렌더 폭주 → 200ms throttle)
+  const [liveAlpha, setLiveAlpha] = useState<number | null>(null);
 
   // 자이로 기반 각도 커버
   const sectorsCovered = new Set<number>();
@@ -145,6 +148,15 @@ export default function CapturePage() {
 
     window.addEventListener('deviceorientation', handler);
     return () => window.removeEventListener('deviceorientation', handler);
+  }, [cameraActive]);
+
+  // 미니맵 "you are here" 인디케이터용 — 5Hz 폴링
+  useEffect(() => {
+    if (!cameraActive) return;
+    const id = window.setInterval(() => {
+      setLiveAlpha(currentOrientationRef.current?.alpha ?? null);
+    }, 200);
+    return () => window.clearInterval(id);
   }, [cameraActive]);
 
   // DeviceMotion: 가속도 → 누적 이동량 (translation 감지)
@@ -472,8 +484,12 @@ export default function CapturePage() {
                 </div>
               )}
 
-              {/* 3D 미니맵 */}
-              <AngleMap3D shots={shots} />
+              {/* 3D 미니맵 — covered/missing 섹터 + 현재 카메라 방향 */}
+              <AngleMap3D
+                shots={shots}
+                sectorsCovered={sectorsCovered}
+                liveAlpha={hasGyro ? liveAlpha : null}
+              />
 
               {/* 썸네일 스트립 */}
               {shots.length > 0 && (
@@ -741,9 +757,25 @@ function FeatureFlash({
 }
 
 /**
- * 3D 미니맵 (하단 중앙) — 촬영된 각도를 구체에 표시.
+ * 3D 미니맵 (하단 중앙) — 촬영 각도 + 미커버 섹터 + 현재 카메라 방향.
+ *
+ * 핵심: 미커버 섹터를 빨간 dim 점으로 표시 → 사용자가 어디로 이동해야
+ * 빈 구간을 채울지 시각적으로 즉시 인지. (이전엔 "10/36" 숫자만 보여
+ * 어느 방향이 빈지 알 수 없어 무작위 회전).
  */
-function AngleMap3D({ shots }: { shots: Shot[] }) {
+function AngleMap3D({
+  shots,
+  sectorsCovered,
+  liveAlpha,
+}: {
+  shots: Shot[];
+  sectorsCovered: Set<number>;
+  liveAlpha: number | null;
+}) {
+  // 36 섹터 = 10° 간격 ring (적도 위에 배치)
+  const sectors = Array.from({ length: SECTORS }, (_, i) => i);
+  const liveAlphaRad = liveAlpha != null ? (liveAlpha * Math.PI) / 180 : null;
+
   return (
     <div className="pointer-events-none absolute bottom-4 left-1/2 h-24 w-24 -translate-x-1/2">
       <svg viewBox="0 0 100 100" className="h-full w-full">
@@ -774,6 +806,31 @@ function AngleMap3D({ shots }: { shots: Shot[] }) {
           strokeWidth="0.5"
         />
 
+        {/* 36 섹터 ring — covered=초록, missing=빨강 dim. 적도 평면. */}
+        {sectors.map((s) => {
+          const covered = sectorsCovered.has(s);
+          // 섹터 중심 각도 (sector 0 = 0°, sector 1 = 10°, ...)
+          const centerDeg = s * SECTOR_ANGLE + SECTOR_ANGLE / 2;
+          const rad = (centerDeg * Math.PI) / 180;
+          const r = 32; // 메인 구체 r=35 보다 약간 안쪽
+          const x = 50 + r * Math.cos(rad);
+          const y = 50 + r * Math.sin(rad) * 0.34; // 적도 ellipse ratio (12/35)
+          return (
+            <circle
+              key={`sec-${s}`}
+              cx={x}
+              cy={y}
+              r="1.0"
+              fill={
+                covered
+                  ? 'rgba(16, 185, 129, 0.55)'
+                  : 'rgba(239, 68, 68, 0.42)'
+              }
+            />
+          );
+        })}
+
+        {/* 실제 촬영 각도 (orientation 그대로 — 적도 위/아래 모두) */}
         {shots.map((s, i) => {
           if (!s.orientation) return null;
           const alphaRad = (s.orientation.alpha * Math.PI) / 180;
@@ -795,6 +852,30 @@ function AngleMap3D({ shots }: { shots: Shot[] }) {
             />
           );
         })}
+
+        {/* "you are here" — 현재 카메라 방향 화살표 (적도 외곽) */}
+        {liveAlphaRad != null && (
+          <>
+            <circle
+              cx={50 + 38 * Math.cos(liveAlphaRad)}
+              cy={50 + 38 * Math.sin(liveAlphaRad) * 0.34}
+              r="1.6"
+              fill="rgba(255, 255, 255, 0.95)"
+              stroke="rgba(16, 185, 129, 1)"
+              strokeWidth="0.6"
+            />
+            {/* 중앙에서 현재 방향으로 짧은 선 */}
+            <line
+              x1="50"
+              y1="50"
+              x2={50 + 36 * Math.cos(liveAlphaRad)}
+              y2={50 + 36 * Math.sin(liveAlphaRad) * 0.34}
+              stroke="rgba(255, 255, 255, 0.4)"
+              strokeWidth="0.4"
+              strokeDasharray="1 1"
+            />
+          </>
+        )}
       </svg>
     </div>
   );

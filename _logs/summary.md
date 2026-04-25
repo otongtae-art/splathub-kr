@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 5 (배포 중)
-**Current deployed commit**: 43bcd9c (frontend, +round 5 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
+**Round**: 6 (배포 중)
+**Current deployed commit**: 8220dc2 (+round 5/6 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -44,10 +44,23 @@
    - done 페이지 헤더에 점 수/평탄도 표시 + flatness<15% 또는 pts<5k 시 노란 진단 배너 + "다시 찍기"
    - **Round 4 (백엔드, 배포 대기) 와 직교적 보강**
 
-## 📋 Round 6 예정
-- [ ] Auto-capture mode (10° 변화 시 자동 촬영)
-- [ ] 촬영 중 실시간 각도 분포 시각화 (섹터 색상)
-- [ ] VGGT-X (sparse-view splat) 통합 검토
+## 🎯 Round 6 구현된 것 (Vercel 자동배포)
+7. **미니맵 sector guidance** (`apps/web/app/capture/page.tsx`)
+   - 36 섹터 ring: covered=초록 dim, missing=빨강 dim → 어디 비었는지 즉시 인지
+   - "you are here" live alpha 화살표 (5Hz 폴링) → 지금 빈 구간 보고 있는지 시각화
+   - 기존 shot 점은 r=1.8 초록으로 ring 위 overlay, beta 도 반영
+   - **입력 photo 분포 균등화 → VGGT 평면 layer 회귀 줄임**
+
+## 🎯 Round 4–6 통합 효과 — 3단 보강
+- Round 4 (대기): VGGT Pointmap Branch — pointcloud **처리** 품질 ↑
+- Round 5 (배포): viewer outlier trim + monster 자가진단 — **출력** 잘 보여줌 + 실패 인지
+- Round 6 (배포): 미니맵 가이드 — **입력** photo 분포 개선
+
+## 📋 Round 7 예정
+- [ ] Auto-capture mode (10° + 정지 시 자동 셔터)
+- [ ] Sharpness 필터 (블러 사진 제외)
+- [ ] 미니맵 탭 시 섹터 가이드 텍스트
+- [ ] VGGT-X (sparse-view splat) — R4 배포 후
 
 ## 📈 품질 경로
 | 경로 | 상태 | 비용 |
