@@ -88,6 +88,11 @@ export default function CapturePage() {
   // 미니맵용 live alpha — orientation ref 를 5Hz 폴링해서 state 동기화
   // (60Hz event 마다 setState 하면 전체 렌더 폭주 → 200ms throttle)
   const [liveAlpha, setLiveAlpha] = useState<number | null>(null);
+  // 자동 촬영 모드 (round 9) — 빈 섹터 진입 시 자동 셔터
+  const [autoCapture, setAutoCapture] = useState(false);
+  // 자동 모드 상태: 직전 섹터 + 마지막 자동 shot 시각 (debounce)
+  const prevSectorRef = useRef<number | null>(null);
+  const lastAutoShotAtRef = useRef<number>(0);
 
   // 자이로 기반 각도 커버
   const sectorsCovered = new Set<number>();
@@ -303,6 +308,41 @@ export default function CapturePage() {
       }, 3500);
     }
   }, [boxRatio]);
+
+  // 자동 촬영 모드 (round 9) — 빈 섹터 진입 시 자동 셔터
+  // 조건:
+  //   - autoCapture ON
+  //   - 자이로 사용 가능 (PC 모드는 alpha 없음 → 의미 없음)
+  //   - 현재 alpha 의 섹터가 직전과 다름 (sector 전환)
+  //   - 새 섹터가 아직 안 채워짐
+  //   - 마지막 자동 shot 으로부터 800ms 경과 (debounce)
+  // 시작 시(shots 0개)에는 첫 셔터를 자동 발사.
+  useEffect(() => {
+    if (!autoCapture || !cameraActive || done) return;
+    if (liveAlpha == null) return; // PC 모드 또는 아직 측정 전
+
+    const now = Date.now();
+    if (now - lastAutoShotAtRef.current < 800) return;
+
+    const sector = Math.floor(liveAlpha / SECTOR_ANGLE) % SECTORS;
+    const prevSector = prevSectorRef.current;
+    const sectorChanged = prevSector === null || sector !== prevSector;
+    prevSectorRef.current = sector;
+
+    if (!sectorChanged) return;
+    if (sectorsCovered.has(sector) && shots.length > 0) return;
+
+    lastAutoShotAtRef.current = now;
+    void captureShot();
+  }, [
+    autoCapture,
+    cameraActive,
+    done,
+    liveAlpha,
+    sectorsCovered,
+    shots.length,
+    captureShot,
+  ]);
 
   const removeShot = useCallback((id: string) => {
     setShots((prev) => {
@@ -654,9 +694,17 @@ export default function CapturePage() {
                 type="button"
                 onClick={captureShot}
                 aria-label="촬영"
-                className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-white bg-white/10 transition-transform active:scale-90"
+                className={`flex h-16 w-16 items-center justify-center rounded-full border-2 bg-white/10 transition-transform active:scale-90 ${
+                  autoCapture
+                    ? 'border-accent shadow-[0_0_18px_rgba(16,185,129,0.55)] animate-pulse'
+                    : 'border-white'
+                }`}
               >
-                <Camera size={24} weight="regular" className="text-white" />
+                <Camera
+                  size={24}
+                  weight="regular"
+                  className={autoCapture ? 'text-accent' : 'text-white'}
+                />
               </button>
               <button
                 type="button"
@@ -668,6 +716,27 @@ export default function CapturePage() {
                 <ArrowRight size={12} weight="regular" />
               </button>
             </div>
+
+            {/* 자동 촬영 토글 (자이로 있을 때만 의미 있음) */}
+            {hasGyro && (
+              <div className="mx-auto mt-3 flex max-w-md items-center justify-center gap-3">
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-base-600">
+                  <input
+                    type="checkbox"
+                    checked={autoCapture}
+                    onChange={(e) => {
+                      setAutoCapture(e.target.checked);
+                      // 토글 시 prev sector 리셋 — 즉시 첫 자동 shot 가능
+                      prevSectorRef.current = null;
+                    }}
+                    className="h-3.5 w-3.5 cursor-pointer accent-accent"
+                  />
+                  <span>
+                    🎬 <b>자동 촬영</b> — 빈 섹터에 들어가면 자동 셔터
+                  </span>
+                </label>
+              </div>
+            )}
             {!canSubmit && shots.length > 0 && (
               <div className="mt-2 flex flex-col items-center gap-1">
                 <p className="text-center text-xs text-base-400">

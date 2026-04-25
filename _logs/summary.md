@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 8 (배포 중)
-**Current deployed commit**: d0183f6 (+round 8 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
+**Round**: 9 (배포 중)
+**Current deployed commit**: 1ed3a94 (+round 9 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -72,11 +72,26 @@
    - [지우기] → removeShot(id) — 다음 사진 찍기 전 즉시 재촬영 결정
    - **Round 7 reactive 필터를 proactive UX 로 보강**
 
-## 📋 Round 9 예정
-- [ ] Auto-capture mode (10° + 정지 시 자동 셔터, R6/R7/R8 결합)
+## 🎯 Round 9 구현된 것 (Vercel 자동배포)
+10. **Auto-capture mode** (`apps/web/app/capture/page.tsx`)
+    - 토글 ON → 빈 섹터 진입할 때마다 자동 셔터 (자이로 모바일만)
+    - 800ms debounce + sector 전환 감지 + sectorsCovered 검사
+    - 셔터 버튼: emerald glow + pulse 애니메이션
+    - **R6 (분포 가이드) + R7/R8 (품질 필터) 와 결합 → 사용자는 한 손으로 폰 들고 걷기만 하면 됨**
+
+## 🎯 Round 4–9 입력→출력 전 파이프라인
+- R4 (대기): 처리 — VGGT Pointmap Branch
+- R5 (배포): 출력 — viewer outlier trim + 자가진단
+- R6 (배포): 입력 분포 — 미니맵 sector guidance
+- R7 (배포): 입력 품질 reactive — sharpness 자동 제외
+- R8 (배포): 입력 품질 proactive — 즉시 흐림 toast
+- R9 (배포): 입력 마찰 — auto-capture mode
+
+## 📋 Round 10 예정
 - [ ] HF Space env var 활성화 도구 (R4 unblock)
-- [ ] 셔터 버튼에 실시간 sharpness meter (찍기 전 미리보기)
-- [ ] Capture "탁자 사용" 가이드 카피
+- [ ] 셔터 버튼에 실시간 sharpness meter
+- [ ] Auto-capture 정지 감지 (motion threshold)
+- [ ] VGGT 결과 confidence 시각화
 
 ## 📈 품질 경로
 | 경로 | 상태 | 비용 |
