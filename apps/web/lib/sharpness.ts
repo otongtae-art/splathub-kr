@@ -90,6 +90,57 @@ export function computeSharpness(
 }
 
 /**
+ * 평균 luma (밝기) 계산 — 어두운 사진 자동 감지.
+ *
+ * 왜 밝기가 photogrammetry 품질에 중요한가:
+ *   어두운 환경 → 센서가 ISO 자동 부스트 → noise 증가 → feature point
+ *   가 noisy → VGGT pose 추정 부정확 → pointcloud layer 분리. R7
+ *   sharpness 필터는 motion blur 만 잡을 뿐, sensor noise 는 못 잡음.
+ *
+ * 결과 범위: 0..255 (RGB luma 평균). 일반 실내 200+, 어두운 실내 50-100,
+ * 거의 어둠 30 미만.
+ */
+export function computeBrightness(
+  source: HTMLCanvasElement | HTMLVideoElement | HTMLImageElement,
+): number {
+  let srcW: number;
+  let srcH: number;
+  if (source instanceof HTMLVideoElement) {
+    srcW = source.videoWidth;
+    srcH = source.videoHeight;
+  } else {
+    srcW = (source as HTMLCanvasElement | HTMLImageElement).width;
+    srcH = (source as HTMLCanvasElement | HTMLImageElement).height;
+  }
+  if (!srcW || !srcH) return 0;
+
+  // 64px 다운스케일이면 평균 brightness 에 충분 (~1ms)
+  const scale = 64 / srcW;
+  const w = Math.max(8, Math.round(srcW * scale));
+  const h = Math.max(8, Math.round(srcH * scale));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return 0;
+  ctx.drawImage(source as CanvasImageSource, 0, 0, w, h);
+  const data = ctx.getImageData(0, 0, w, h).data;
+
+  let sum = 0;
+  let n = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    const luma =
+      0.299 * (data[i] ?? 0) +
+      0.587 * (data[i + 1] ?? 0) +
+      0.114 * (data[i + 2] ?? 0);
+    sum += luma;
+    n++;
+  }
+  return n > 0 ? sum / n : 0;
+}
+
+/**
  * 여러 sharpness score 중 흐림 임계값을 동적 계산.
  *
  * 로직: median 의 40% 미만 + 절대값 30 미만 두 조건 동시 만족 시 흐림.

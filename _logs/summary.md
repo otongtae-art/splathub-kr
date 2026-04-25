@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 10 (배포 중)
-**Current deployed commit**: 979cad2 (+round 10 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
+**Round**: 11 (배포 중)
+**Current deployed commit**: d3a0934 (+round 11 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -95,11 +95,18 @@
     - **R9 가 흔들림 도중 발사하던 motion blur 문제 해결**
     - R7 sharpness 필터보다 앞단에서 차단 → 흐림 사진 자체가 적게 발생
 
-## 📋 Round 11 예정
-- [ ] HF Space env var 활성화 도구 (R4 unblock)
-- [ ] Auto-capture: 셔터 발사 시 햅틱 진동 (Vibration API)
-- [ ] 셔터 버튼에 실시간 sharpness meter (preview)
-- [ ] VGGT 결과 confidence 시각화
+## 🎯 Round 11 구현된 것 (Vercel 자동배포)
+12. **어두움 검사 + toast 확장** (`apps/web/lib/sharpness.ts`, `app/capture/page.tsx`)
+    - `computeBrightness(canvas)` — 64px luma 평균 (~1ms)
+    - brightness<35 시 R8 toast 가 '어두움 — 조명 부족' 메시지로 발사
+    - sharpness<50 + brightness<35 둘 다 → '흐림 + 어두움' 메시지
+    - **R7 (motion blur) 의 사각지대인 ISO noise 입력 품질 보강**
+
+## 📋 Round 12 예정
+- [ ] Auto-capture 햅틱 진동 (Vibration API)
+- [ ] Multi-shot burst (1셔터 → 3장 → sharp 1장 유지)
+- [ ] 미니맵에 '추천 다음 위치' 화살표
+- [ ] HF Space env 활성화 도구
 
 ## 📈 품질 경로
 | 경로 | 상태 | 비용 |

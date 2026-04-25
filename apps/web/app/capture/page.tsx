@@ -31,7 +31,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { saveCaptures } from '@/lib/captureStore';
 import { detectFeatures, type FeaturePoint } from '@/lib/features';
-import { classifyBlurry, computeSharpness } from '@/lib/sharpness';
+import {
+  classifyBlurry,
+  computeBrightness,
+  computeSharpness,
+} from '@/lib/sharpness';
 
 // UX 기준 상향 (2026-04-21 리서치 기반):
 //   - Polycam 최소 20장, Apple Object Capture 20-30장
@@ -56,6 +60,8 @@ type Shot = {
   features: FeaturePoint[];
   /** Laplacian variance — 클수록 선명. 모든 shot 의 median 대비로 흐림 판정. */
   sharpness: number;
+  /** 평균 luma (0-255). 낮으면 어두운 환경 → ISO noise 증가 (round 11). */
+  brightness: number;
   timestamp: number;
 };
 
@@ -82,8 +88,12 @@ export default function CapturePage() {
   const [shots, setShots] = useState<Shot[]>([]);
   const [flashFeatures, setFlashFeatures] = useState<FeaturePoint[] | null>(null);
   const [flashPhoto, setFlashPhoto] = useState<string | null>(null);
-  // 즉시 흐림 경고 (round 8) — 방금 찍은 사진이 절대 임계값 미만
-  const [blurToast, setBlurToast] = useState<{ id: string; sharpness: number } | null>(null);
+  // 즉시 품질 경고 (round 8 → 11 확장) — 흐림 또는 어두움
+  const [blurToast, setBlurToast] = useState<{
+    id: string;
+    isBlurry: boolean;
+    isDark: boolean;
+  } | null>(null);
   const [orientationOK, setOrientationOK] = useState<boolean | null>(null);
   const [done, setDone] = useState(false);
   // 타겟 박스 크기 비율. 0.3 = 작은 물체, 0.85 = 큰 물체. 기본 40%.
@@ -278,6 +288,8 @@ export default function CapturePage() {
     const features = fctx ? detectFeatures(featureCanvas, { max: 120 }) : [];
     // sharpness 는 박스 영역 (객체) 기준으로 측정 — 배경 흐림은 무관
     const sharpness = fctx ? computeSharpness(featureCanvas) : 0;
+    // brightness — 어두운 환경 감지 (round 11)
+    const brightness = fctx ? computeBrightness(featureCanvas) : 0;
 
     const blob = await new Promise<Blob | null>((resolve) =>
       canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.92),
@@ -295,6 +307,7 @@ export default function CapturePage() {
       motionSinceLast: motion,
       features,
       sharpness,
+      brightness,
       timestamp: Date.now(),
     };
     setShots((prev) => [...prev, shot]);
@@ -308,10 +321,12 @@ export default function CapturePage() {
       setFlashPhoto(null);
     }, 800);
 
-    // 즉시 흐림 경고 — 절대 임계값 (50) 미만이면 toast 표시.
-    // round 7 의 median 기반 필터는 borderline 처리, 이건 명백한 흐림만.
-    if (sharpness < 50) {
-      setBlurToast({ id: shot.id, sharpness });
+    // 즉시 품질 경고 — 흐림(sharpness<50) 또는 어두움(brightness<35).
+    // 어두움 35 = 거의 검정. 일반 실내 200+, 어두운 실내 50-100.
+    const isBlurry = sharpness < 50;
+    const isDark = brightness < 35;
+    if (isBlurry || isDark) {
+      setBlurToast({ id: shot.id, isBlurry, isDark });
       setTimeout(() => {
         setBlurToast((cur) => (cur?.id === shot.id ? null : cur));
       }, 3500);
@@ -595,7 +610,7 @@ export default function CapturePage() {
                 </div>
               )}
 
-              {/* 즉시 흐림 경고 toast — sharpness < 50 시 3.5초 표시 */}
+              {/* 즉시 품질 경고 toast — 흐림 또는 어두움 시 3.5초 표시 */}
               {blurToast && (
                 <div
                   role="alert"
@@ -604,7 +619,19 @@ export default function CapturePage() {
                   <div className="flex items-center gap-3 rounded-md border border-danger/60 bg-black/85 px-3 py-2 text-xs text-white shadow-lg backdrop-blur-sm">
                     <span className="text-danger">⚠</span>
                     <span>
-                      <b>흐림 감지</b> · 자동 제외 가능성 높음
+                      <b>
+                        {blurToast.isBlurry && blurToast.isDark
+                          ? '흐림 + 어두움'
+                          : blurToast.isBlurry
+                            ? '흐림 감지'
+                            : '어두움 — 조명 부족'}
+                      </b>
+                      <span className="ml-1 text-white/70">
+                        ·{' '}
+                        {blurToast.isDark && !blurToast.isBlurry
+                          ? '센서 noise 증가 가능'
+                          : '자동 제외 가능성 높음'}
+                      </span>
                     </span>
                     <button
                       type="button"
