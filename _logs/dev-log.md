@@ -10,3 +10,4 @@
 [2026-04-24T16:05+09:00] [round 3] [deployed] 클라이언트 이미지 리사이즈 (max 800px) — VGGT 업로드 ~10× 감소 (15MB→1.5MB), ZeroGPU 시간 절약 — commit c2f31be
 [2026-04-25T00:00+09:00] [round 3.5] [deployed] OG 동적 이미지 + 메타 강화 + 홈 hero 재정립 — commit 5654b59
 [2026-04-25T00:01+09:00] [round 4] [git-only] VGGT prediction_mode "Pointmap Branch" + conf_thres 50→3 — '평면 layer monster' 의 직접 원인 (Depthmap unprojection × noisy 핸드헬드 포즈) 제거. env override 가능. **HF Space 수동 재배포 필요** (Vercel HF_TOKEN 이 read-only 라 push 실패)
+[2026-04-25T00:09+09:00] [round 5] [deploying] Viewer outlier trim (5–95% percentile) + auto-fit on trimmed bbox + monster 진단 배너 (flatness<15% or pts<5k → '다시 찍기' CTA). round 4 와 직교적. Vercel 자동배포

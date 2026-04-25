@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 4 (git-only, HF Space 수동 배포 대기)
-**Current deployed commit**: 5654b59 (frontend) / `04a763b @ HF Space` (backend)
+**Round**: 5 (배포 중)
+**Current deployed commit**: 43bcd9c (frontend, +round 5 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -36,9 +36,17 @@
    - ⚠️ HF Space 수동 배포 필요 (`bash worker/hf-space/deploy.sh floerw splathub-trellis-proxy`)
    - 또는 HF Space Settings 에서 위 두 env 만 설정해도 즉시 활성화
 
-## 📋 Round 5 예정
-- [ ] Pointmap 출력 시 viewer 자동 카메라 fit (모델이 viewport 밖 가능)
+## 🎯 Round 5 구현된 것 (Vercel 자동배포)
+6. **Viewer outlier trim + monster 자가진단** (`apps/web/components/viewer/MeshViewer.tsx`, `app/capture/train/page.tsx`)
+   - VGGT pointcloud 5–95 percentile 거리 trim → noise 점 제거
+   - trimmed bbox 기준 카메라 auto-fit (이전엔 outlier 가 bbox 폭주 → "빈 화면")
+   - `onStats` 콜백으로 `{retainedCount, bboxDim, depthSpread, flatness}` emit
+   - done 페이지 헤더에 점 수/평탄도 표시 + flatness<15% 또는 pts<5k 시 노란 진단 배너 + "다시 찍기"
+   - **Round 4 (백엔드, 배포 대기) 와 직교적 보강**
+
+## 📋 Round 6 예정
 - [ ] Auto-capture mode (10° 변화 시 자동 촬영)
+- [ ] 촬영 중 실시간 각도 분포 시각화 (섹터 색상)
 - [ ] VGGT-X (sparse-view splat) 통합 검토
 
 ## 📈 품질 경로

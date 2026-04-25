@@ -13,6 +13,111 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
+/**
+ * VGGT pointcloud outlier 제거 — centroid 기준 거리 [5%, 95%] percentile 만 남김.
+ *
+ * VGGT 는 종종 카메라 frustum 너머로 튀는 noise 점들을 출력. 그대로 두면
+ * Three.js Box3 가 이 노이즈까지 포함해 폭주, auto-fit 카메라가 너무 멀어져
+ * 진짜 객체가 viewport 안에 작은 점으로만 보이거나 사라짐 → 사용자에게 "monster".
+ *
+ * 결과: 새 BufferGeometry 로 in-place 교체. 옛 geometry 는 dispose.
+ */
+function trimPointcloudOutliers(points: THREE.Points): {
+  retained: number;
+  bbox: THREE.Box3;
+} {
+  const geo = points.geometry as THREE.BufferGeometry;
+  const posAttr = geo.attributes.position as THREE.BufferAttribute;
+  const total = posAttr.count;
+
+  // 1) centroid (single pass)
+  let cx = 0;
+  let cy = 0;
+  let cz = 0;
+  for (let i = 0; i < total; i++) {
+    cx += posAttr.getX(i);
+    cy += posAttr.getY(i);
+    cz += posAttr.getZ(i);
+  }
+  cx /= total;
+  cy /= total;
+  cz /= total;
+
+  // 2) distance² 캐시 (sqrt 안 해도 percentile 순서는 같음)
+  const dist2 = new Float32Array(total);
+  for (let i = 0; i < total; i++) {
+    const dx = posAttr.getX(i) - cx;
+    const dy = posAttr.getY(i) - cy;
+    const dz = posAttr.getZ(i) - cz;
+    dist2[i] = dx * dx + dy * dy + dz * dz;
+  }
+
+  // 3) 5%, 95% percentile 임계값 (sort 후 인덱싱; total≥100 이라 안전)
+  const sorted = Float32Array.from(dist2).sort();
+  const lo = (sorted[Math.floor(total * 0.05)] ?? 0) as number;
+  const hi = (sorted[Math.floor(total * 0.95)] ?? Infinity) as number;
+
+  // 4) 컬러/노멀 attribute 도 같이 슬라이스
+  const colorAttr = geo.attributes.color as THREE.BufferAttribute | undefined;
+  const normalAttr = geo.attributes.normal as THREE.BufferAttribute | undefined;
+  const colorSize = colorAttr?.itemSize ?? 0;
+  const normalSize = normalAttr?.itemSize ?? 0;
+
+  // pre-pass: 유지할 인덱스 개수 (noUncheckedIndexedAccess 대응으로 local 변수 경유)
+  let kept = 0;
+  for (let i = 0; i < total; i++) {
+    const d = dist2[i] as number;
+    if (d >= lo && d <= hi) kept++;
+  }
+
+  const newPos = new Float32Array(kept * 3);
+  const newCol = colorAttr ? new Float32Array(kept * colorSize) : null;
+  const newNorm = normalAttr ? new Float32Array(kept * normalSize) : null;
+  const bbox = new THREE.Box3();
+  const tmp = new THREE.Vector3();
+
+  let k = 0;
+  for (let i = 0; i < total; i++) {
+    const d = dist2[i] as number;
+    if (d < lo || d > hi) continue;
+    const x = posAttr.getX(i);
+    const y = posAttr.getY(i);
+    const z = posAttr.getZ(i);
+    newPos[k * 3] = x;
+    newPos[k * 3 + 1] = y;
+    newPos[k * 3 + 2] = z;
+    bbox.expandByPoint(tmp.set(x, y, z));
+    if (newCol && colorAttr) {
+      const src = colorAttr.array as ArrayLike<number>;
+      for (let c = 0; c < colorSize; c++) {
+        newCol[k * colorSize + c] = (src[i * colorSize + c] ?? 0) as number;
+      }
+    }
+    if (newNorm && normalAttr) {
+      const src = normalAttr.array as ArrayLike<number>;
+      for (let n = 0; n < normalSize; n++) {
+        newNorm[k * normalSize + n] = (src[i * normalSize + n] ?? 0) as number;
+      }
+    }
+    k++;
+  }
+
+  const newGeo = new THREE.BufferGeometry();
+  newGeo.setAttribute('position', new THREE.BufferAttribute(newPos, 3));
+  if (newCol) {
+    newGeo.setAttribute('color', new THREE.BufferAttribute(newCol, colorSize));
+  }
+  if (newNorm) {
+    newGeo.setAttribute('normal', new THREE.BufferAttribute(newNorm, normalSize));
+  }
+  newGeo.computeBoundingBox();
+
+  geo.dispose();
+  points.geometry = newGeo;
+
+  return { retained: kept, bbox };
+}
+
 export type ViewerStats = {
   /** 원본 점 개수 (outlier 제거 전) */
   pointsCount: number;
@@ -149,8 +254,8 @@ export default function MeshViewer({
       // VGGT pointcloud 면 통계 콜백
       if (totalPoints > 0) {
         const dimsSorted = [size.x, size.y, size.z].sort((a, b) => b - a);
-        const bboxDim = dimsSorted[0];
-        const depthSpread = dimsSorted[2];
+        const bboxDim = (dimsSorted[0] ?? 0) as number;
+        const depthSpread = (dimsSorted[2] ?? 0) as number;
         const flatness = bboxDim > 0 ? depthSpread / bboxDim : 0;
         console.info(
           `[MeshViewer] VGGT pointcloud: ${totalPoints} → ${retainedPoints} (95% kept), bbox=${bboxDim.toFixed(2)}m, depth=${depthSpread.toFixed(2)}m, flatness=${flatness.toFixed(2)}`,

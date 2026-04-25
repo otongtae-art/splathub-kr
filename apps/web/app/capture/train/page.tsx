@@ -30,6 +30,7 @@ import {
   loadCaptures,
   type CaptureMeta,
 } from '@/lib/captureStore';
+import type { ViewerStats } from '@/components/viewer/MeshViewer';
 import { callVggt } from '@/lib/hfSpace';
 
 const MeshViewer = dynamic(() => import('@/components/viewer/MeshViewer'), {
@@ -50,6 +51,7 @@ export default function CaptureTrainPage() {
   });
   const [glbBytes, setGlbBytes] = useState<Uint8Array | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [viewerStats, setViewerStats] = useState<ViewerStats | null>(null);
   const thumbnailGridRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -177,6 +179,13 @@ export default function CaptureTrainPage() {
 
   // 결과 표시 모드
   if (stage === 'done' && glbBytes) {
+    // monster 의심 휴리스틱:
+    //   flatness < 0.15 → 거의 평면 (depth 가 width/height 의 15% 미만)
+    //   retainedCount < 5000 → 너무 sparse 해서 surface 안 보임
+    const monsterSuspect =
+      viewerStats !== null &&
+      (viewerStats.flatness < 0.15 || viewerStats.retainedCount < 5000);
+
     return (
       <div className="flex min-h-[100dvh] flex-col">
         <header className="flex items-center justify-between border-b border-base-100 bg-base-0 px-5 py-2 text-sm">
@@ -189,6 +198,12 @@ export default function CaptureTrainPage() {
           </Link>
           <div className="flex items-center gap-3 text-xs text-base-500">
             <span>VGGT · photogrammetry · {shots.length}장</span>
+            {viewerStats && (
+              <span className="hidden font-mono text-base-400 sm:inline">
+                {viewerStats.retainedCount.toLocaleString()}pts ·{' '}
+                평탄도 {(viewerStats.flatness * 100).toFixed(0)}%
+              </span>
+            )}
             <button
               type="button"
               onClick={downloadGlb}
@@ -199,8 +214,37 @@ export default function CaptureTrainPage() {
             </button>
           </div>
         </header>
+        {monsterSuspect && (
+          <div className="flex items-start gap-2 border-b border-amber-500/30 bg-amber-500/[0.06] px-5 py-2.5 text-xs">
+            <Warning
+              size={14}
+              weight="regular"
+              className="mt-0.5 flex-shrink-0 text-amber-500"
+            />
+            <div className="flex flex-1 flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
+              <span className="font-medium text-amber-700 dark:text-amber-400">
+                결과가 평면적이거나 sparse 합니다
+              </span>
+              <span className="text-base-500">
+                {viewerStats!.flatness < 0.15
+                  ? `깊이 ${(viewerStats!.flatness * 100).toFixed(0)}% — 카메라가 한 방향만 본 듯`
+                  : `점 ${viewerStats!.retainedCount.toLocaleString()}개 — 너무 sparse`}
+              </span>
+              <Link
+                href="/capture"
+                className="ml-auto whitespace-nowrap text-amber-700 underline transition-colors hover:text-amber-900 dark:text-amber-400"
+              >
+                다시 촬영하기 →
+              </Link>
+            </div>
+          </div>
+        )}
         <div className="flex-1">
-          <MeshViewer fileBytes={glbBytes} autoRotate />
+          <MeshViewer
+            fileBytes={glbBytes}
+            autoRotate
+            onStats={setViewerStats}
+          />
         </div>
       </div>
     );
