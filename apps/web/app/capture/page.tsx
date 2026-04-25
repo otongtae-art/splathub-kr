@@ -126,6 +126,10 @@ export default function CapturePage() {
   // round 34 — TARGET_SHOTS 도달 시 자동 학습 페이지 이동 (5초 cancel 가능)
   const [autoTrainOnTarget, setAutoTrainOnTarget] = useState(false);
   const [autoTrainCountdown, setAutoTrainCountdown] = useState<number | null>(null);
+  // round 43 — iOS 자이로 권한 상태 (R42 명시 요청 결과 추적)
+  const [motionPermission, setMotionPermission] = useState<
+    'unknown' | 'granted' | 'denied' | 'unsupported'
+  >('unknown');
   // round 28+29 — IndexedDB 에 남은 이전 세션 (이어가기 + 미리보기 thumbnail)
   const [pastSession, setPastSession] = useState<{
     id: string;
@@ -208,32 +212,31 @@ export default function CapturePage() {
     try {
       setCameraError(null);
 
-      // round 42: iOS 13+ DeviceMotion/Orientation 권한 명시 요청
+      // round 42+43: iOS 13+ DeviceMotion/Orientation 권한 명시 요청
       // (iOS Safari 는 user gesture 안에서 호출해야 prompt 표시 — startCamera 가
       //  버튼 클릭 핸들러이므로 여기가 적합. 권한 없으면 R6 미니맵, R9 auto-
       //  capture, R10 motion gate, R34 자동 학습이 silent 비활성 — 큰 UX 손실)
+      // R43: 결과 추적 → 거부 시 사용자에게 명시 안내
       type WithPermission = {
         requestPermission?: () => Promise<'granted' | 'denied'>;
       };
-      if (typeof DeviceMotionEvent !== 'undefined') {
-        const perm = (DeviceMotionEvent as unknown as WithPermission).requestPermission;
-        if (typeof perm === 'function') {
-          try {
-            await perm();
-          } catch (e) {
-            console.warn('[capture] DeviceMotion permission denied:', e);
-          }
+      const motionAPI = (DeviceMotionEvent as unknown as WithPermission)?.requestPermission;
+      const orientAPI = (DeviceOrientationEvent as unknown as WithPermission)?.requestPermission;
+      if (typeof motionAPI === 'function' || typeof orientAPI === 'function') {
+        // iOS 13+
+        try {
+          const results: ('granted' | 'denied')[] = [];
+          if (typeof motionAPI === 'function') results.push(await motionAPI());
+          if (typeof orientAPI === 'function') results.push(await orientAPI());
+          const denied = results.some((r) => r === 'denied');
+          setMotionPermission(denied ? 'denied' : 'granted');
+        } catch (e) {
+          console.warn('[capture] iOS motion permission failed:', e);
+          setMotionPermission('denied');
         }
-      }
-      if (typeof DeviceOrientationEvent !== 'undefined') {
-        const perm = (DeviceOrientationEvent as unknown as WithPermission).requestPermission;
-        if (typeof perm === 'function') {
-          try {
-            await perm();
-          } catch (e) {
-            console.warn('[capture] DeviceOrientation permission denied:', e);
-          }
-        }
+      } else {
+        // Android, desktop — API 없음. orientationOK useEffect 가 실제 작동 여부 판단.
+        setMotionPermission('unsupported');
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -997,9 +1000,19 @@ export default function CapturePage() {
                 )}
               </div>
 
-              {orientationOK === false && (
+              {orientationOK === false && motionPermission !== 'denied' && (
                 <div className="absolute right-5 top-5 rounded-md bg-amber-500/20 px-3 py-1.5 text-[10px] text-amber-100">
                   💻 PC 모드 — 카메라/대상을 직접 움직여 각도 바꿔주세요
+                </div>
+              )}
+
+              {/* round 43: iOS 자이로 권한 거부 명시 안내 (R42 후속) */}
+              {motionPermission === 'denied' && (
+                <div className="absolute right-5 top-5 max-w-[280px] rounded-md border border-amber-500/40 bg-black/85 px-3 py-2 text-[11px] text-amber-100 shadow-lg backdrop-blur-sm">
+                  <p className="font-medium">📐 자이로 권한 거부됨</p>
+                  <p className="mt-1 text-[10px] text-white/75 leading-snug">
+                    자동 촬영/미니맵/자동 학습 비활성. iOS 설정 → Safari → 동작과 방향 → 허용 후 새로고침.
+                  </p>
                 </div>
               )}
 

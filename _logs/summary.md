@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 42 (BUG FIX 배포 중)
-**Current deployed commit**: b97a6fb (+round 42 BUG FIX 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
+**Round**: 43 (배포 중)
+**Current deployed commit**: 761b7a3 (+round 43 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -311,8 +311,14 @@
     - 이후: iOS prompt → 허용 → 모든 자동화 기능 작동
     - **iPhone 사용자 (capture 주 채널) 의 큰 UX 손실 회복**
 
-## 📋 Round 43 예정
-- [ ] iOS 권한 거부 시 명시 안내
+## 🎯 Round 43 구현된 것 (Vercel 자동배포)
+44. **iOS 자이로 권한 거부 안내** (`apps/web/app/capture/page.tsx`)
+    - motionPermission 4-state (unknown/granted/denied/unsupported) 추적
+    - denied 시 카메라 화면 우상단 banner: "📐 자이로 권한 거부됨 — 자동 촬영/미니맵/자동 학습 비활성. iOS 설정 → Safari → 동작과 방향 → 허용"
+    - 기존 PC 모드 칩과 mutex (중복 안내 방지)
+    - **R42 거부 케이스에 명시 회복 안내 — 사용자 혼란 ↓**
+
+## 📋 Round 44 예정
 - [ ] Service worker (offline)
 - [ ] VGGT 통계 확장 패널
 - [ ] 토글 트랜지션
