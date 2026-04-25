@@ -13,12 +13,27 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
+export type ViewerStats = {
+  /** 원본 점 개수 (outlier 제거 전) */
+  pointsCount: number;
+  /** outlier 제거 후 남은 점 개수 */
+  retainedCount: number;
+  /** trimmed bbox 의 최대 차원 (m) */
+  bboxDim: number;
+  /** trimmed bbox 의 최소 차원 (m) — 깊이 두께 */
+  depthSpread: number;
+  /** depthSpread / bboxDim ∈ [0, 1]. < 0.15 면 평면 layer = monster 의심 */
+  flatness: number;
+};
+
 type Props = {
   url?: string;
   fileBytes?: Uint8Array;
   autoRotate?: boolean;
   onLoad?: () => void;
   onError?: (err: Error) => void;
+  /** VGGT pointcloud 의 통계 콜백. mesh 로드는 호출 안 됨. */
+  onStats?: (stats: ViewerStats) => void;
 };
 
 export default function MeshViewer({
@@ -27,10 +42,16 @@ export default function MeshViewer({
   autoRotate = false,
   onLoad,
   onError,
+  onStats,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [err, setErr] = useState<string | null>(null);
+  // 부모가 매 렌더마다 새 함수 참조를 넘겨도 useEffect 재실행 안 되도록 ref 패턴
+  const onStatsRef = useRef(onStats);
+  useEffect(() => {
+    onStatsRef.current = onStats;
+  }, [onStats]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -73,48 +94,75 @@ export default function MeshViewer({
       if (disposed) return;
       const model = gltf.scene;
 
-      // VGGT pointcloud GLB 감지 → 큰 점 크기로 렌더 (Three.js PointsMaterial)
-      // VGGT 는 GLB 에 points primitive 로 저장. 기본 렌더는 점이 너무 작아
-      // 뷰어에서 드문드문 점처럼 보임. Pointmaterial size 를 키우면 surface
-      // 처럼 보임 — Poisson mesh 없이 시각적 품질 개선.
-      let pointsCount = 0;
+      // VGGT pointcloud GLB 감지 → 점 크기 확대 + outlier 제거 + auto-fit
+      // VGGT 는 멀리 튀는 noise 점들을 종종 출력함. 그대로 bbox 잡으면 카메라가
+      // 너무 멀어져 객체가 viewport 밖으로 빠져 "빈 화면"처럼 보임 = monster 체감.
+      // 5–95 percentile 거리 trim 으로 진짜 객체 bbox 를 얻고 그 기준으로 fit.
+      let totalPoints = 0;
+      let retainedPoints = 0;
+      let pointsBox: THREE.Box3 | null = null;
       model.traverse((child: THREE.Object3D) => {
         if ((child as THREE.Points).isPoints) {
           const points = child as THREE.Points;
-          pointsCount += (points.geometry.attributes.position?.count ?? 0);
-          // PointsMaterial 교체 — 점 size 키움, 거리별 축소 활성
+          const original = points.geometry.attributes.position?.count ?? 0;
+          totalPoints += original;
+
+          // 1) PointsMaterial 교체 — 점 size 키움, 거리별 축소 활성
           const oldMat = points.material as THREE.PointsMaterial;
           const newMat = new THREE.PointsMaterial({
             size: 0.008, // 객체 크기 ~1m 기준 8mm 점 (surface 처럼)
             vertexColors: !!(oldMat.vertexColors ?? true),
-            sizeAttenuation: true, // 거리 비례 축소
+            sizeAttenuation: true,
           });
-          // 기존 재질에서 color/map 복사
           if (oldMat.map) newMat.map = oldMat.map;
           if (!newMat.vertexColors && oldMat.color) {
             newMat.color.copy(oldMat.color);
           }
           points.material = newMat;
           oldMat.dispose();
+
+          // 2) outlier trim — centroid 기준 [5%, 95%] 거리 percentile 만 유지
+          if (original >= 100) {
+            const trimmed = trimPointcloudOutliers(points);
+            retainedPoints += trimmed.retained;
+            if (!pointsBox) pointsBox = trimmed.bbox.clone();
+            else pointsBox.union(trimmed.bbox);
+          } else {
+            retainedPoints += original;
+          }
         }
       });
-      if (pointsCount > 0) {
-        console.info(
-          `[MeshViewer] VGGT pointcloud detected: ${pointsCount} points, size boosted`,
-        );
-      }
 
-      // 자동 fit: bounding box 기준 카메라 거리 조정
-      const box = new THREE.Box3().setFromObject(model);
+      // 자동 fit: pointcloud 면 trimmed bbox, mesh 면 모델 전체 bbox
+      const box = pointsBox ?? new THREE.Box3().setFromObject(model);
       const size = box.getSize(new THREE.Vector3());
       const center = box.getCenter(new THREE.Vector3());
-      const maxDim = Math.max(size.x, size.y, size.z);
+      const maxDim = Math.max(size.x, size.y, size.z) || 1;
       const fovRad = (camera.fov * Math.PI) / 180;
-      const distance = (maxDim * 1.4) / (2 * Math.tan(fovRad / 2));
+      // 1.4 → 1.6: outlier trim 후엔 진짜 객체 크기라 약간 여유 줘도 좋음
+      const distance = (maxDim * 1.6) / (2 * Math.tan(fovRad / 2));
       camera.position.copy(center);
       camera.position.z += distance;
       controls.target.copy(center);
       controls.update();
+
+      // VGGT pointcloud 면 통계 콜백
+      if (totalPoints > 0) {
+        const dimsSorted = [size.x, size.y, size.z].sort((a, b) => b - a);
+        const bboxDim = dimsSorted[0];
+        const depthSpread = dimsSorted[2];
+        const flatness = bboxDim > 0 ? depthSpread / bboxDim : 0;
+        console.info(
+          `[MeshViewer] VGGT pointcloud: ${totalPoints} → ${retainedPoints} (95% kept), bbox=${bboxDim.toFixed(2)}m, depth=${depthSpread.toFixed(2)}m, flatness=${flatness.toFixed(2)}`,
+        );
+        onStatsRef.current?.({
+          pointsCount: totalPoints,
+          retainedCount: retainedPoints,
+          bboxDim,
+          depthSpread,
+          flatness,
+        });
+      }
 
       scene.add(model);
       setStatus('ready');
