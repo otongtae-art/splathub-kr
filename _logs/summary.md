@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 18 (배포 중)
-**Current deployed commit**: d83ccd7 (+round 18 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
+**Round**: 19 (배포 중)
+**Current deployed commit**: 3cda38d (+round 19 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -150,10 +150,16 @@
     - train 페이지에 collapsible "<details> 🌀 흐림 N장 보기" 추가
     - **사용자가 무엇이 필터됐는지 직접 확인 → 다음 촬영 개선 인사이트**
 
-## 📋 Round 19 예정
+## 🎯 Round 19 구현된 것 (Vercel 자동배포)
+20. **TRELLIS.2 monster 폴백** (`apps/web/app/capture/train/page.tsx`)
+    - VGGT 결과가 monster (R5 휴리스틱) 시 banner 에 '🪄 TRELLIS.2 (1장 AI)' 버튼
+    - 클릭 → callHfSpace(shots[0]) → glbBytes 교체 → viewer 에 AI 결과 표시
+    - **세션 구제 — 60초 VGGT 낭비 후 빈 손 → AI generative 3D 결과**
+
+## 📋 Round 20 예정
 - [ ] 셔터 흰 플래시 오버레이
-- [ ] Monster 시 TRELLIS.2 (1장 AI) 폴백 옵션
-- [ ] VGGT 결과 별 통계 시각화
+- [ ] Capture sharpness 메타 → train 으로 전달 (best shot 선택)
+- [ ] VGGT 결과 통계 시각화
 - [ ] HF Space env 활성화 도구
 
 ## 📈 품질 경로

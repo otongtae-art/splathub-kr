@@ -31,7 +31,7 @@ import {
   type CaptureMeta,
 } from '@/lib/captureStore';
 import type { ViewerStats } from '@/components/viewer/MeshViewer';
-import { callVggt } from '@/lib/hfSpace';
+import { callHfSpace, callVggt } from '@/lib/hfSpace';
 
 const MeshViewer = dynamic(() => import('@/components/viewer/MeshViewer'), {
   ssr: false,
@@ -54,6 +54,15 @@ export default function CaptureTrainPage() {
   const [glbBytes, setGlbBytes] = useState<Uint8Array | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [viewerStats, setViewerStats] = useState<ViewerStats | null>(null);
+  // round 19 — VGGT monster 시 TRELLIS.2 (1장 generative AI) fallback
+  const [trellisState, setTrellisState] = useState<
+    'idle' | 'loading' | 'done' | 'error'
+  >('idle');
+  const [trellisError, setTrellisError] = useState<string | null>(null);
+  const [trellisProgress, setTrellisProgress] = useState<{
+    frac: number;
+    label: string;
+  }>({ frac: 0, label: '' });
   const thumbnailGridRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -138,6 +147,32 @@ export default function CaptureTrainPage() {
       setError(msg);
       setStage('ready'); // 다시 시도 가능
       setProgress({ frac: 0, label: '' });
+    }
+  };
+
+  // round 19: TRELLIS.2 (1장 generative) 폴백 — VGGT monster 시 세션 구제
+  const tryTrellisFallback = async () => {
+    if (!shots || shots.length === 0) return;
+    // 첫 사진 사용 — train 페이지는 sharpness 정보 없으므로 단순 첫 번째.
+    // (capture 시 sharpness 기록 후 train 으로 넘기면 best 선택 가능 — future work)
+    const photo = shots[0];
+    if (!photo) return;
+    setTrellisState('loading');
+    setTrellisError(null);
+    setTrellisProgress({ frac: 0, label: 'TRELLIS.2 호출' });
+    try {
+      const result = await callHfSpace(photo, {
+        onProgress: (frac, label) =>
+          setTrellisProgress({ frac, label: label ?? '' }),
+      });
+      setGlbBytes(result.bytes); // VGGT 결과 → TRELLIS 결과로 교체
+      setViewerStats(null); // 새 모델에 대한 통계는 재측정 필요
+      setTrellisState('done');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[train] TRELLIS fallback failed', err);
+      setTrellisError(msg);
+      setTrellisState('error');
     }
   };
 
@@ -226,7 +261,7 @@ export default function CaptureTrainPage() {
               weight="regular"
               className="mt-0.5 flex-shrink-0 text-amber-500"
             />
-            <div className="flex flex-1 flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
+            <div className="flex flex-1 flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
               <span className="font-medium text-amber-700 dark:text-amber-400">
                 결과가 평면적이거나 sparse 합니다
               </span>
@@ -235,12 +270,35 @@ export default function CaptureTrainPage() {
                   ? `깊이 ${(viewerStats!.flatness * 100).toFixed(0)}% — 카메라가 한 방향만 본 듯`
                   : `점 ${viewerStats!.retainedCount.toLocaleString()}개 — 너무 sparse`}
               </span>
-              <Link
-                href="/capture"
-                className="ml-auto whitespace-nowrap text-amber-700 underline transition-colors hover:text-amber-900 dark:text-amber-400"
-              >
-                다시 촬영하기 →
-              </Link>
+              <div className="ml-auto flex items-center gap-3 whitespace-nowrap">
+                {/* round 19: TRELLIS.2 폴백 */}
+                {trellisState === 'idle' && (
+                  <button
+                    type="button"
+                    onClick={tryTrellisFallback}
+                    className="tactile rounded border border-amber-500/40 bg-amber-500/[0.1] px-2 py-0.5 text-amber-700 transition-colors hover:bg-amber-500/[0.2] dark:text-amber-300"
+                  >
+                    🪄 TRELLIS.2 (1장 AI)
+                  </button>
+                )}
+                {trellisState === 'loading' && (
+                  <span className="font-mono text-amber-700 dark:text-amber-400">
+                    {Math.round(trellisProgress.frac * 100)}%{' '}
+                    {trellisProgress.label}
+                  </span>
+                )}
+                {trellisState === 'error' && (
+                  <span className="text-danger" title={trellisError ?? ''}>
+                    ✗ TRELLIS 실패
+                  </span>
+                )}
+                <Link
+                  href="/capture"
+                  className="text-amber-700 underline transition-colors hover:text-amber-900 dark:text-amber-400"
+                >
+                  다시 촬영하기 →
+                </Link>
+              </div>
             </div>
           </div>
         )}
