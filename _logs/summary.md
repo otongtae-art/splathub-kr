@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 29 (배포 중)
-**Current deployed commit**: cbea007 (+round 29 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
+**Round**: 30 (도구 추가, R4 활성화 가이드)
+**Current deployed commit**: 80bee48 (+round 30 도구) / `04a763b @ HF Space` (backend, R4 활성화 도구 사용 시 풀림)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -222,11 +222,17 @@
     - URL.createObjectURL + cleanup
     - **사용자가 어떤 세션인지 시각적 즉시 인지**
 
-## 📋 Round 30 예정
+## 🎯 Round 30 구현된 것 (도구 추가, Vercel 영향 없음)
+31. **R4 활성화 도구** (`worker/hf-space/deploy.ps1`, `ACTIVATE-R4.md`)
+    - PowerShell 스크립트: 토큰 secure prompt + 자동 huggingface_hub 설치 + 색상 출력
+    - `ACTIVATE-R4.md`: 왜 / 어떻게 / 빠른 우회 (env 변수만) / 토큰 발급 가이드
+    - **자율 루프가 못 했던 R4 활성화 경로 사용자에게 명확 제공**
+    - R4 풀리면 R1-R29 노력 효과 2배+
+
+## 📋 Round 31 예정
 - [ ] VGGT 통계 확장 패널
 - [ ] 토글 트랜지션
-- [ ] 캡처 메모리 절약 안내
-- [ ] HF Space env 활성화 도구
+- [ ] 탑 페이지에 sample 결과 미리보기 카드
 
 ## 📈 품질 경로
 | 경로 | 상태 | 비용 |
