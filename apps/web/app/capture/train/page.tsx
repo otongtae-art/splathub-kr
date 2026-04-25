@@ -585,19 +585,47 @@ export default function CaptureTrainPage() {
         </section>
       )}
 
-      {/* VGGT 실패 시 에러 메시지 (stage 는 ready 로 복귀해 다시 시도 가능) */}
-      {stage === 'ready' && error && (
-        <section className="flex flex-col gap-2 rounded-md border border-danger/40 bg-danger/[0.04] p-4 text-sm animate-fade-in">
-          <div className="flex items-center gap-2">
-            <Warning size={14} weight="regular" className="text-danger" />
-            <span className="font-medium text-danger">이전 학습 실패</span>
-          </div>
-          <p className="text-xs text-base-500 break-all">{error}</p>
-          <p className="text-[11px] text-base-400">
-            서버 쿼터 소진 가능성 — 다시 시도하거나 잠시 후 재시도해주세요.
-          </p>
-        </section>
-      )}
+      {/* VGGT 실패 시 에러 메시지 (round 32: 분류 + TRELLIS 폴백 버튼) */}
+      {stage === 'ready' && error && (() => {
+        const cls = classifyVggtError(error);
+        return (
+          <section className="flex flex-col gap-3 rounded-md border border-danger/40 bg-danger/[0.04] p-4 text-sm animate-fade-in">
+            <div className="flex items-center gap-2">
+              <Warning size={14} weight="regular" className="text-danger" />
+              <span className="font-medium text-danger">{cls.title}</span>
+            </div>
+            <p className="text-xs text-base-500 break-all">{error}</p>
+            <p className="text-[11px] text-base-400 leading-relaxed">{cls.advice}</p>
+            {/* round 32: VGGT 완전 실패 시에도 TRELLIS.2 1장 폴백 옵션 제공 */}
+            {trellisState !== 'done' && shots.length > 0 && (
+              <div className="flex items-center gap-3 pt-1 text-xs">
+                {trellisState === 'idle' && (
+                  <button
+                    type="button"
+                    onClick={tryTrellisFallback}
+                    className="tactile rounded border border-amber-500/40 bg-amber-500/[0.1] px-2.5 py-1 text-amber-700 transition-colors hover:bg-amber-500/[0.2] dark:text-amber-300"
+                  >
+                    🪄 1장 AI 로 시도 (TRELLIS.2)
+                  </button>
+                )}
+                {trellisState === 'loading' && (
+                  <span className="font-mono text-amber-700 dark:text-amber-400">
+                    {Math.round(trellisProgress.frac * 100)}% {trellisProgress.label}
+                  </span>
+                )}
+                {trellisState === 'error' && (
+                  <span className="text-danger" title={trellisError ?? ''}>
+                    ✗ TRELLIS 도 실패
+                  </span>
+                )}
+                <span className="text-base-400">
+                  사진 1장 (best sharp) 으로 대신 생성
+                </span>
+              </div>
+            )}
+          </section>
+        );
+      })()}
 
       {/* 고급: Brush WebGPU 로 로컬 학습 (옵션) */}
       {stage === 'ready' && (
@@ -619,4 +647,67 @@ export default function CaptureTrainPage() {
       )}
     </main>
   );
+}
+
+/**
+ * VGGT 호출 에러 분류 — round 32.
+ * 에러 메시지 패턴 매칭으로 사용자에게 actionable 한 advice 제공.
+ */
+function classifyVggtError(msg: string): { title: string; advice: string } {
+  const m = msg.toLowerCase();
+  if (
+    m.includes('quota') ||
+    m.includes('rate limit') ||
+    m.includes('429') ||
+    m.includes('exceeded')
+  ) {
+    return {
+      title: 'ZeroGPU 쿼터 소진',
+      advice:
+        '무료 GPU 티어가 다음 갱신까지 대기 필요 (~30분). 잠시 후 다시 시도하거나 아래 1장 AI 시도.',
+    };
+  }
+  if (m.includes('timeout') || m.includes('timed out') || m.includes('120')) {
+    return {
+      title: '120초 GPU 한도 초과',
+      advice:
+        'ZeroGPU 무료 티어는 120초 한도. 사진 수가 너무 많거나 객체가 너무 복잡. 사진 25장 이하 + 단순한 객체 권장.',
+    };
+  }
+  if (
+    m.includes('cuda') ||
+    m.includes('out of memory') ||
+    m.includes('oom')
+  ) {
+    return {
+      title: 'GPU 메모리 부족',
+      advice:
+        '사진 수를 줄여서 다시 시도 (15-20장 권장). 또는 아래 1장 AI 옵션.',
+    };
+  }
+  if (
+    m.includes('network') ||
+    m.includes('fetch') ||
+    m.includes('failed to load') ||
+    m.includes('502') ||
+    m.includes('503') ||
+    m.includes('504')
+  ) {
+    return {
+      title: '네트워크 또는 서버 오류',
+      advice:
+        'HF Space 가 잠시 응답하지 않음. 인터넷 연결 확인 + 1분 후 재시도.',
+    };
+  }
+  if (m.includes('cancelled') || m.includes('aborted')) {
+    return {
+      title: '요청 중단',
+      advice: '브라우저가 요청을 중단함. 다시 시도하면 됩니다.',
+    };
+  }
+  return {
+    title: '학습 실패',
+    advice:
+      '예상치 못한 오류. 다시 시도하거나, 아래 1장 AI 옵션을 사용해 결과물을 받아보세요.',
+  };
 }

@@ -36,4 +36,5 @@
 [2026-04-25T03:18+09:00] [round 28] [deployed] 이전 세션 이어가기 — /capture 진입 시 IndexedDB 에서 최근 24시간 내 세션 자동 감지, 카메라 시작 전 화면에 '📂 이전 세션 발견 · N장 / X분 전 촬영. 이어가기' 배너 표시. 브라우저 닫고 돌아온 사용자가 처음부터 다시 안 찍어도 됨. commit cbea007
 [2026-04-25T03:26+09:00] [round 29] [deployed] 이전 세션 banner 미리보기 thumbnail — R28 의 텍스트 배너에 첫 사진 48×48 thumbnail 추가. URL.createObjectURL + cleanup. 사용자가 어떤 세션을 이어가는지 시각적 확인 → "맞아 이거였지" 즉시 인지. commit 80bee48
 [2026-04-25T03:34+09:00] [round 30] [deployed] R4 활성화 도구 — worker/hf-space/deploy.ps1 (Windows PowerShell, 토큰 secure prompt 포함) + ACTIVATE-R4.md (재배포 / env 변수 우회 / 토큰 발급 안내). 자율 루프가 read-only token 으로 못 했던 R4 (Pointmap Branch monster fix) 활성화 경로 사용자에게 명확 제공. commit 77e1f4c
-[2026-04-25T03:42+09:00] [round 31] [deploying] 홈페이지 sidebar 샘플 결과 링크 — '내 모델' 0개일 때 '예시 결과 보기 →' 버튼 + '실제 사용자 결과가 어떻게 보이는지 미리 확인' 안내. 새 방문자가 capture 시작 전 무엇이 나올지 인지 → 기대치 정렬 + 클릭 의도 ↑
+[2026-04-25T03:42+09:00] [round 31] [deployed] 홈페이지 sidebar 샘플 결과 링크 — '내 모델' 0개일 때 '예시 결과 보기 →' 버튼 + '실제 사용자 결과가 어떻게 보이는지 미리 확인' 안내. 새 방문자가 capture 시작 전 무엇이 나올지 인지 → 기대치 정렬 + 클릭 의도 ↑. commit e4e4bab
+[2026-04-25T03:50+09:00] [round 32] [deploying] VGGT 실패 에러 분류 + TRELLIS 폴백 — classifyVggtError() 가 quota/timeout/OOM/network/aborted 5종 분류, 각각 actionable advice 표시. 또한 R19 monster 폴백을 VGGT 완전 실패 케이스에도 적용 (1장 AI 시도 버튼). 사용자가 빈 손으로 가는 케이스 줄임

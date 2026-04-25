@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 31 (배포 중)
-**Current deployed commit**: 77e1f4c (+round 31 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
+**Round**: 32 (배포 중)
+**Current deployed commit**: e4e4bab (+round 32 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -235,10 +235,17 @@
     - `/m/sample-butterfly` 직링크
     - **새 방문자가 capture 시작 전 expectation 형성 → 클릭 의도 ↑**
 
-## 📋 Round 32 예정
+## 🎯 Round 32 구현된 것 (Vercel 자동배포)
+33. **VGGT 실패 에러 분류 + TRELLIS 폴백** (`apps/web/app/capture/train/page.tsx`)
+    - `classifyVggtError()`: quota/timeout/OOM/network/aborted 5종 분류
+    - 각 분류마다 actionable advice 표시 (제목 + 해결 방법)
+    - VGGT 완전 실패 케이스에도 TRELLIS 폴백 버튼 (R19 monster 와 통합)
+    - **거의 모든 실패 경로에서 사용자 결과물 1개 이상 받을 수 있음**
+
+## 📋 Round 33 예정
+- [ ] Mobile 전용 viewer stats
 - [ ] VGGT 통계 확장 패널
 - [ ] 토글 트랜지션
-- [ ] 공유 링크 OG image 동적
 
 ## 📈 품질 경로
 | 경로 | 상태 | 비용 |
