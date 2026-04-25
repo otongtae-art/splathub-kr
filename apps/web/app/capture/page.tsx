@@ -108,6 +108,12 @@ export default function CapturePage() {
   const [autoWaiting, setAutoWaiting] = useState(false);
   // round 14 — manual shutter 도 burst 활성화 (opt-in, 250ms 지연 vs 품질)
   const [manualBurst, setManualBurst] = useState(false);
+  // round 15 — 카메라 시작 직후 환경 사전 체크 (밝기 sample 1초)
+  const [envCheck, setEnvCheck] = useState<{
+    state: 'pending' | 'ok' | 'dim';
+    avgBrightness: number;
+  } | null>(null);
+  const [envBannerDismissed, setEnvBannerDismissed] = useState(false);
   // 자동 모드 상태: 직전 섹터 + 마지막 자동 shot 시각 (debounce)
   const prevSectorRef = useRef<number | null>(null);
   const lastAutoShotAtRef = useRef<number>(0);
@@ -215,6 +221,52 @@ export default function CapturePage() {
     }, 200);
     return () => window.clearInterval(id);
   }, [cameraActive]);
+
+  // round 15 — 카메라 시작 직후 환경 사전 체크 (1초간 brightness 5회 sample)
+  // 너무 어두우면 사용자에게 사전 경고 → 20+ 사진 투자 전에 환경 개선 유도.
+  // shots>0 이면 이미 촬영 진행 중이므로 재실행 안 함.
+  useEffect(() => {
+    if (!cameraActive) return;
+    if (shots.length > 0) return; // 이미 촬영 시작됨, skip
+    if (envCheck && envCheck.state !== 'pending') return; // 이미 측정 완료
+
+    setEnvCheck({ state: 'pending', avgBrightness: 0 });
+    let cancelled = false;
+    const samples: number[] = [];
+
+    const sampleOnce = () => {
+      const video = videoRef.current;
+      if (!video || !video.videoWidth) return;
+      try {
+        const b = computeBrightness(video);
+        samples.push(b);
+      } catch {
+        /* ignore */
+      }
+    };
+
+    // 200ms 간격으로 5회 샘플 → 1초간 평균
+    const interval = window.setInterval(sampleOnce, 200);
+    const finish = window.setTimeout(() => {
+      window.clearInterval(interval);
+      if (cancelled || samples.length === 0) return;
+      const avg = samples.reduce((a, b) => a + b, 0) / samples.length;
+      // 60 미만 = 어두움 경고. R11 의 per-shot 임계값 (35) 보다 살짝 너그럽게
+      // — 환경 자체는 50-100 어두운 실내 정도면 미리 경고.
+      setEnvCheck({
+        state: avg < 60 ? 'dim' : 'ok',
+        avgBrightness: avg,
+      });
+    }, 1100);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      window.clearTimeout(finish);
+    };
+    // envCheck 는 dependency 에서 제외 — 무한 루프 방지 (state setter 호출이 effect 재실행 트리거)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cameraActive, shots.length]);
 
   // DeviceMotion: 가속도 → 누적 이동량 (translation 감지)
   // 진짜 이동 거리는 double integration 이라 오차 크지만
@@ -675,6 +727,33 @@ export default function CapturePage() {
                   💻 PC 모드 — 카메라/대상을 직접 움직여 각도 바꿔주세요
                 </div>
               )}
+
+              {/* round 15: 환경 사전 체크 — 어두움 시 사전 경고 (촬영 시작 전) */}
+              {envCheck?.state === 'dim' &&
+                !envBannerDismissed &&
+                shots.length === 0 && (
+                  <div className="pointer-events-auto absolute left-5 right-5 top-20 mx-auto max-w-md animate-fade-in">
+                    <div className="flex items-start gap-2.5 rounded-md border border-amber-500/50 bg-black/85 px-3.5 py-2.5 text-xs text-white shadow-lg backdrop-blur-sm">
+                      <span className="mt-0.5 text-amber-400">💡</span>
+                      <div className="flex flex-1 flex-col gap-1">
+                        <p className="font-medium text-amber-200">
+                          환경이 어둡습니다 (밝기 {envCheck.avgBrightness.toFixed(0)})
+                        </p>
+                        <p className="text-[11px] text-white/70">
+                          어두운 곳에서는 카메라 ISO 노이즈 ↑ → photogrammetry
+                          품질 ↓. 더 밝은 곳에서 촬영을 권장합니다.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setEnvBannerDismissed(true)}
+                        className="tactile rounded border border-white/20 px-2 py-0.5 text-[10px] text-white/80 hover:bg-white/10"
+                      >
+                        무시
+                      </button>
+                    </div>
+                  </div>
+                )}
 
               {/* 즉시 품질 경고 toast — 흐림 또는 어두움 시 3.5초 표시 */}
               {blurToast && (

@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 14 (배포 중)
-**Current deployed commit**: 2b67c25 (+round 14 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
+**Round**: 15 (배포 중)
+**Current deployed commit**: b989326 (+round 15 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -124,10 +124,17 @@
     - manual 셔터 '✨ 3장 burst' 토글 (Auto OFF 일 때만 표시)
     - **모든 사용자가 burst 품질 선택 가능 + 화면 안 보고도 셔터/경고 인지**
 
-## 📋 Round 15 예정
+## 🎯 Round 15 구현된 것 (Vercel 자동배포)
+16. **환경 사전 체크** (`apps/web/app/capture/page.tsx`)
+    - 카메라 시작 직후 1초간 brightness 5회 sample
+    - 평균 < 60 시 banner: "💡 환경이 어둡습니다 (밝기 X) — 더 밝은 곳 권장"
+    - shots>0 또는 [무시] 클릭 시 자동 숨김
+    - **사용자가 20+ 사진 투자 전에 환경 개선 결정 → R11 toast 보다 먼저 발동**
+
+## 📋 Round 16 예정
 - [ ] 결과 페이지 R7 dropped 사진 미리보기
-- [ ] 캡처 시작 전 환경 사전 체크 (밝기)
-- [ ] 셔터 발사 시 흰 플래시 오버레이
+- [ ] 셔터 흰 플래시 오버레이
+- [ ] 환경 체크에 feature density 추가 (textureless wall 감지)
 - [ ] HF Space env 활성화 도구
 
 ## 📈 품질 경로
