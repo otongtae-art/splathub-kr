@@ -73,6 +73,9 @@ export default function CapturePage() {
   // 완벽하진 않지만 "정지 vs 이동" 판별엔 충분.
   const motionAccumRef = useRef<number>(0);
   const lastMotionTickRef = useRef<number>(0);
+  // 최근 가속도 EWMA (round 10) — auto-capture motion gate 용
+  // 큰 값 = 카메라가 움직이는 중 (모션 블러 위험), 작은 값 = 정지/안정
+  const recentMotionRef = useRef<number>(0);
 
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -90,6 +93,8 @@ export default function CapturePage() {
   const [liveAlpha, setLiveAlpha] = useState<number | null>(null);
   // 자동 촬영 모드 (round 9) — 빈 섹터 진입 시 자동 셔터
   const [autoCapture, setAutoCapture] = useState(false);
+  // round 10 — auto-capture 가 motion gate 로 대기 중인지 표시
+  const [autoWaiting, setAutoWaiting] = useState(false);
   // 자동 모드 상태: 직전 섹터 + 마지막 자동 shot 시각 (debounce)
   const prevSectorRef = useRef<number | null>(null);
   const lastAutoShotAtRef = useRef<number>(0);
@@ -204,6 +209,10 @@ export default function CapturePage() {
       if (linear > 0.3 && dt < 0.5) {
         motionAccumRef.current += linear * dt;
       }
+      // EWMA — α=0.25, ~3 sample 동안 영향. 약 200ms 윈도우의 평균 효과.
+      // auto-capture 가 이 값으로 셔터 안전 시점 판단.
+      recentMotionRef.current =
+        0.75 * recentMotionRef.current + 0.25 * linear;
     };
 
     window.addEventListener('devicemotion', handler);
@@ -310,12 +319,13 @@ export default function CapturePage() {
   }, [boxRatio]);
 
   // 자동 촬영 모드 (round 9) — 빈 섹터 진입 시 자동 셔터
-  // 조건:
+  // 조건 (모두 만족):
   //   - autoCapture ON
   //   - 자이로 사용 가능 (PC 모드는 alpha 없음 → 의미 없음)
   //   - 현재 alpha 의 섹터가 직전과 다름 (sector 전환)
   //   - 새 섹터가 아직 안 채워짐
   //   - 마지막 자동 shot 으로부터 800ms 경과 (debounce)
+  //   - (round 10) recentMotionRef < 0.4 m/s² (steady — 모션 블러 방지)
   // 시작 시(shots 0개)에는 첫 셔터를 자동 발사.
   useEffect(() => {
     if (!autoCapture || !cameraActive || done) return;
@@ -331,6 +341,17 @@ export default function CapturePage() {
 
     if (!sectorChanged) return;
     if (sectorsCovered.has(sector) && shots.length > 0) return;
+
+    // round 10: 모션 게이트 — 카메라 흔들림 시 셔터 보류 (motion blur 방지)
+    // EWMA 가 ~200ms 윈도우 평균. 0.4 m/s² 는 steady 한 손 정도.
+    if (recentMotionRef.current > 0.4) {
+      // sector 는 channge 된 채로 prev 갱신했으므로 다음 폴링에 motion 안정되면 발사
+      // prevSector 를 다시 null 처리해 다음 tick 에 재평가
+      prevSectorRef.current = null;
+      setAutoWaiting(true);
+      return;
+    }
+    setAutoWaiting(false);
 
     lastAutoShotAtRef.current = now;
     void captureShot();
@@ -719,7 +740,7 @@ export default function CapturePage() {
 
             {/* 자동 촬영 토글 (자이로 있을 때만 의미 있음) */}
             {hasGyro && (
-              <div className="mx-auto mt-3 flex max-w-md items-center justify-center gap-3">
+              <div className="mx-auto mt-3 flex max-w-md flex-col items-center gap-1">
                 <label className="flex cursor-pointer items-center gap-2 text-xs text-base-600">
                   <input
                     type="checkbox"
@@ -728,6 +749,7 @@ export default function CapturePage() {
                       setAutoCapture(e.target.checked);
                       // 토글 시 prev sector 리셋 — 즉시 첫 자동 shot 가능
                       prevSectorRef.current = null;
+                      setAutoWaiting(false);
                     }}
                     className="h-3.5 w-3.5 cursor-pointer accent-accent"
                   />
@@ -735,6 +757,11 @@ export default function CapturePage() {
                     🎬 <b>자동 촬영</b> — 빈 섹터에 들어가면 자동 셔터
                   </span>
                 </label>
+                {autoCapture && autoWaiting && (
+                  <p className="text-[10px] text-amber-600 dark:text-amber-400 animate-pulse">
+                    📷 카메라 안정 대기 중 — 잠시 멈춰주세요
+                  </p>
+                )}
               </div>
             )}
             {!canSubmit && shots.length > 0 && (

@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 9 (배포 중)
-**Current deployed commit**: 1ed3a94 (+round 9 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
+**Round**: 10 (배포 중)
+**Current deployed commit**: 979cad2 (+round 10 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -87,10 +87,18 @@
 - R8 (배포): 입력 품질 proactive — 즉시 흐림 toast
 - R9 (배포): 입력 마찰 — auto-capture mode
 
-## 📋 Round 10 예정
+## 🎯 Round 10 구현된 것 (Vercel 자동배포)
+11. **Auto-capture motion gate** (`apps/web/app/capture/page.tsx`)
+    - DeviceMotion EWMA (α=0.25, ~200ms 윈도우) — `recentMotionRef`
+    - 자동 셔터 직전 게이트: `recentMotionRef > 0.4 m/s²` 면 보류
+    - "📷 카메라 안정 대기 중 — 잠시 멈춰주세요" amber 표시
+    - **R9 가 흔들림 도중 발사하던 motion blur 문제 해결**
+    - R7 sharpness 필터보다 앞단에서 차단 → 흐림 사진 자체가 적게 발생
+
+## 📋 Round 11 예정
 - [ ] HF Space env var 활성화 도구 (R4 unblock)
-- [ ] 셔터 버튼에 실시간 sharpness meter
-- [ ] Auto-capture 정지 감지 (motion threshold)
+- [ ] Auto-capture: 셔터 발사 시 햅틱 진동 (Vibration API)
+- [ ] 셔터 버튼에 실시간 sharpness meter (preview)
 - [ ] VGGT 결과 confidence 시각화
 
 ## 📈 품질 경로
