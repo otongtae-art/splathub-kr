@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 32 (배포 중)
-**Current deployed commit**: e4e4bab (+round 32 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
+**Round**: 33 (배포 중)
+**Current deployed commit**: 957194b (+round 33 진행 중) / `04a763b @ HF Space` (backend, R4 활성화 도구 deploy.ps1 사용 시 풀림)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -242,10 +242,17 @@
     - VGGT 완전 실패 케이스에도 TRELLIS 폴백 버튼 (R19 monster 와 통합)
     - **거의 모든 실패 경로에서 사용자 결과물 1개 이상 받을 수 있음**
 
-## 📋 Round 33 예정
-- [ ] Mobile 전용 viewer stats
+## 🎯 Round 33 구현된 것 (Vercel 자동배포)
+34. **Mobile-friendly viewer stats** (`apps/web/app/capture/train/page.tsx`)
+    - `hidden sm:inline` 으로 mobile 에서 안 보이던 viewer 통계 약식 표시
+    - mobile: '12k·28%' / desktop: '12,547pts · 평탄도 28%'
+    - tooltip 에 정확 수치 + 의미 설명
+    - **모바일 (capture 주 채널) 사용자도 결과 품질 즉시 인지**
+
+## 📋 Round 34 예정
 - [ ] VGGT 통계 확장 패널
 - [ ] 토글 트랜지션
+- [ ] Capture 종료 후 자동 학습 페이지 이동 옵션
 
 ## 📈 품질 경로
 | 경로 | 상태 | 비용 |

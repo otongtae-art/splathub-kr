@@ -324,9 +324,19 @@ export default function CaptureTrainPage() {
               <span>VGGT · photogrammetry · {shots.length}장</span>
             )}
             {viewerStats && activeView === 'vggt' && (
-              <span className="hidden font-mono text-base-400 sm:inline">
-                {viewerStats.retainedCount.toLocaleString()}pts ·{' '}
-                평탄도 {(viewerStats.flatness * 100).toFixed(0)}%
+              <span
+                className="font-mono text-base-400"
+                title={`Pointcloud: ${viewerStats.retainedCount.toLocaleString()} points / 평탄도(flatness) ${(viewerStats.flatness * 100).toFixed(1)}% — depth/width 비율, 작을수록 평면적`}
+              >
+                {/* round 33: mobile 에서도 보이게. 짧은 약식 → sm 부터 풀 라벨 */}
+                <span className="sm:hidden">
+                  {Math.round(viewerStats.retainedCount / 1000)}k·
+                  {(viewerStats.flatness * 100).toFixed(0)}%
+                </span>
+                <span className="hidden sm:inline">
+                  {viewerStats.retainedCount.toLocaleString()}pts ·{' '}
+                  평탄도 {(viewerStats.flatness * 100).toFixed(0)}%
+                </span>
               </span>
             )}
             <button
