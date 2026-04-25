@@ -27,4 +27,5 @@
 [2026-04-25T02:06+09:00] [round 19] [deployed] TRELLIS.2 monster 폴백 — VGGT 결과가 monster (R5 휴리스틱) 일 때 banner 에 '🪄 TRELLIS.2 (1장 AI)' 버튼 추가. 클릭 시 첫 사진을 generative AI 로 변환 → 세션 구제 (사용자가 60초 VGGT 낭비 후 빈 손으로 가는 대신 무언가 받음). commit 94f447b
 [2026-04-25T02:14+09:00] [round 20] [deployed] Sharpness 메타 → train 전달 — capture 가 sharpnessScores[] 를 IndexedDB CaptureMeta 에 저장. R19 TRELLIS 폴백이 가장 sharp 한 shot 자동 선택 (이전엔 첫 사진 무조건). best photo 1장 → 더 좋은 AI 생성 결과. commit 4022610
 [2026-04-25T02:22+09:00] [round 21] [deployed] Best shot ★ 마커 — 5장 이상 촬영 시 흐림 제외한 kept 사진 중 sharpness 최대 1장에 ★ best 배지 + emerald 테두리/glow. 사용자가 자신의 베스트 사진 즉시 인지 (R20 TRELLIS 폴백이 사용할 사진 시각화). commit eee4806
-[2026-04-25T02:30+09:00] [round 22] [deploying] 셔터 사운드 (iOS 보완) — Web Audio API 로 1500Hz 50ms tick 합성. 토글 옵트인 (default OFF), AudioContext 는 토글 ON 시 user gesture 안에서 생성/unlock. R14 햅틱이 안 되는 iOS Safari 등 환경에서 셔터 인지 가능
+[2026-04-25T02:30+09:00] [round 22] [deployed] 셔터 사운드 (iOS 보완) — Web Audio API 로 1500Hz 50ms tick 합성. 토글 옵트인 (default OFF), AudioContext 는 토글 ON 시 user gesture 안에서 생성/unlock. R14 햅틱이 안 되는 iOS Safari 등 환경에서 셔터 인지 가능. commit a5a557d
+[2026-04-25T02:38+09:00] [round 23] [deploying] 셔터 흰 플래시 오버레이 — key=Date.now() 갱신으로 div 재마운트 → 기존 animate-flash (800ms) 재실행. opacity 0.55 흰색 → 투명. R14 햅틱 + R22 사운드와 트리오 완성, 모든 환경 동작 시각 피드백

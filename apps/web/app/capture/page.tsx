@@ -95,6 +95,9 @@ export default function CapturePage() {
   const [shots, setShots] = useState<Shot[]>([]);
   const [flashFeatures, setFlashFeatures] = useState<FeaturePoint[] | null>(null);
   const [flashPhoto, setFlashPhoto] = useState<string | null>(null);
+  // round 23 — 셔터 흰 플래시 (시각 피드백; 햅틱/오디오 안 되는 경우에도 동작)
+  // 트리거 시 새 ID → key prop 으로 div 재마운트 → animate-flash 재실행
+  const [shutterFlashId, setShutterFlashId] = useState<number>(0);
   // 즉시 품질 경고 (round 8 → 11 확장) — 흐림 또는 어두움
   const [blurToast, setBlurToast] = useState<{
     id: string;
@@ -387,6 +390,9 @@ export default function CapturePage() {
     shutterHaptic(30);
     // round 22: 셔터 사운드 (사용자가 토글 ON 시) — iOS 등 햅틱 안 되는 환경 보완
     playShutterSound();
+    // round 23: 시각 플래시 — 모든 환경 동작 (오디오/햅틱 비의존)
+    // ID 만 갱신 → div 가 key 로 재마운트되며 animate-flash (800ms) 재실행
+    setShutterFlashId(Date.now());
 
     // 박스 영역 좌표 계산 — feature/sharpness/brightness 측정용
     const shortSide = Math.min(vw, vh);
@@ -753,6 +759,16 @@ export default function CapturePage() {
                   photoUrl={flashPhoto}
                   features={flashFeatures}
                   boxRatio={boxRatio}
+                />
+              )}
+
+              {/* round 23: 셔터 흰 플래시 — key 갱신 시 animate-flash 재실행
+                  (800ms ease-out, opacity 1 → 0). 모든 환경 동작 시각 피드백. */}
+              {shutterFlashId > 0 && (
+                <div
+                  key={shutterFlashId}
+                  className="pointer-events-none absolute inset-0 animate-flash bg-white"
+                  style={{ opacity: 0.55 }}
                 />
               )}
 

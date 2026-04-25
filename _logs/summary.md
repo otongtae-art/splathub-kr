@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 22 (배포 중)
-**Current deployed commit**: eee4806 (+round 22 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
+**Round**: 23 (배포 중)
+**Current deployed commit**: a6b2c0e (+round 23 진행 중) / `04a763b @ HF Space` (backend, round 4 대기)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -176,10 +176,17 @@
     - default OFF (opt-in)
     - **R14 햅틱이 안 되는 iOS Safari 환경에서 셔터 인지 가능**
 
-## 📋 Round 23 예정
-- [ ] 셔터 흰 플래시 오버레이 (시각 피드백 트리오)
-- [ ] VGGT 결과 통계 시각화 (R5 stats 패널)
+## 🎯 Round 23 구현된 것 (Vercel 자동배포)
+24. **셔터 흰 플래시 오버레이** (`apps/web/app/capture/page.tsx`)
+    - 기존 `animate-flash` Tailwind keyframe 재사용
+    - key prop=Date.now() 갱신 → div 재마운트 → 애니메이션 재실행
+    - opacity 0.55 흰색 → 투명 (800ms ease-out)
+    - **R14 햅틱 + R22 사운드 + R23 시각 = 셔터 피드백 트리오 완성 (모든 환경 최소 1채널)**
+
+## 📋 Round 24 예정
+- [ ] VGGT 결과 통계 시각화 (R5 stats 확장 패널)
 - [ ] 환경 사전 체크 진행 indicator
+- [ ] TRELLIS 폴백 결과 'AI 생성' 라벨
 - [ ] HF Space env 활성화 도구
 
 ## 📈 품질 경로
