@@ -426,16 +426,27 @@ def convert_images_to_glb_vggt(image_paths: list[str]) -> str:
             raise RuntimeError("VGGT upload did not return target_dir")
         logger.info("  target_dir=%s", target_dir)
 
-        logger.info("[vggt 2/2] reconstructing...")
+        # Pointmap Branch: VGGT 가 모든 뷰를 공유 3D 공간으로 직접 회귀.
+        # Depthmap 모드는 per-view depth 를 noisy 카메라 포즈로 unproject 하기에
+        # 핸드헬드 촬영에서 평면 layer 분리("monster") artifact 가 발생.
+        # conf_thres 3 = 공식 Space 기본값 (50 은 너무 공격적이라 sparse 하게 보임).
+        prediction_mode = os.getenv("VGGT_PREDICTION_MODE", "Pointmap Branch")
+        conf_thres = float(os.getenv("VGGT_CONF_THRES", "3"))
+
+        logger.info(
+            "[vggt 2/2] reconstructing... mode=%s conf=%.1f",
+            prediction_mode,
+            conf_thres,
+        )
         recon_result = client.predict(
             target_dir=target_dir,
-            conf_thres=50,
+            conf_thres=conf_thres,
             frame_filter="All",
             mask_black_bg=False,
             mask_white_bg=False,
             show_cam=False,
             mask_sky=False,
-            prediction_mode="Depthmap and Camera Branch",
+            prediction_mode=prediction_mode,
             api_name="/gradio_demo",
         )
         if not isinstance(recon_result, (list, tuple)) or len(recon_result) < 1:

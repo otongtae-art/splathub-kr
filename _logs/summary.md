@@ -1,8 +1,8 @@
 # 자율 개선 루프 현황
 
 **Start**: 2026-04-21 (KST)
-**Round**: 3 (완료, 배포됨)
-**Current deployed commit**: c2f31be
+**Round**: 4 (git-only, HF Space 수동 배포 대기)
+**Current deployed commit**: 5654b59 (frontend) / `04a763b @ HF Space` (backend)
 
 ## 🎯 Round 1 구현된 것
 1. **Poisson surface reconstruction** (worker/hf-space/app.py)
@@ -27,10 +27,19 @@
    - 20장 기준 ~15MB → ~1.5MB (10× 감소)
    - ZeroGPU 120s 중 업로드 시간 절약 → GPU 처리 시간 확보
 
-## 📋 Round 4 예정
+## 🎯 Round 4 구현된 것 (배포 대기)
+5. **VGGT prediction_mode → "Pointmap Branch"** (`worker/hf-space/app.py:430`)
+   - `Depthmap and Camera Branch` → `Pointmap Branch` (모든 뷰 → 공유 3D 공간 직접 회귀)
+   - `conf_thres 50 → 3` (공식 Space 기본값)
+   - `VGGT_PREDICTION_MODE`, `VGGT_CONF_THRES` env 노출 → tuning 가능
+   - **"평면 layer monster" 의 직접 원인 (per-view depth × noisy 핸드헬드 포즈) 제거**
+   - ⚠️ HF Space 수동 배포 필요 (`bash worker/hf-space/deploy.sh floerw splathub-trellis-proxy`)
+   - 또는 HF Space Settings 에서 위 두 env 만 설정해도 즉시 활성화
+
+## 📋 Round 5 예정
+- [ ] Pointmap 출력 시 viewer 자동 카메라 fit (모델이 viewport 밖 가능)
 - [ ] Auto-capture mode (10° 변화 시 자동 촬영)
-- [ ] Optical flow 기반 rotate vs translate 구분
-- [ ] orientation 기반 중복 프레임 필터링
+- [ ] VGGT-X (sparse-view splat) 통합 검토
 
 ## 📈 품질 경로
 | 경로 | 상태 | 비용 |

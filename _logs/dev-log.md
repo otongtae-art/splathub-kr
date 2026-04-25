@@ -8,3 +8,5 @@
 [2026-04-21T15:57+09:00] [round 1.2] [deploying] MeshViewer PointsMaterial size=0.008 + DeviceMotion 가속도 누적
 [2026-04-24T15:25+09:00] [round 2] [fix] 자율 루프 재활성화 (절대날짜 종료조건 제거) + VGGT anonymous fallback 추가 (쿼터 소진 대응)
 [2026-04-24T16:05+09:00] [round 3] [deployed] 클라이언트 이미지 리사이즈 (max 800px) — VGGT 업로드 ~10× 감소 (15MB→1.5MB), ZeroGPU 시간 절약 — commit c2f31be
+[2026-04-25T00:00+09:00] [round 3.5] [deployed] OG 동적 이미지 + 메타 강화 + 홈 hero 재정립 — commit 5654b59
+[2026-04-25T00:01+09:00] [round 4] [git-only] VGGT prediction_mode "Pointmap Branch" + conf_thres 50→3 — '평면 layer monster' 의 직접 원인 (Depthmap unprojection × noisy 핸드헬드 포즈) 제거. env override 가능. **HF Space 수동 재배포 필요** (Vercel HF_TOKEN 이 read-only 라 push 실패)
